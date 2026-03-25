@@ -1,9 +1,11 @@
 const userGroupModel = require("../models/userGroupModel");
+const { STATUS_CODES } = require("../constants/statusCodes");
+const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 
 function parseUserGroupPayload(body) {
   const userId = Number(body.user_id);
   const groupId = Number(body.group_id);
-  const statusCode = Number(body.status_code);
+  const statusCode = String(body.status_code || "").trim().toUpperCase();
 
   if (!Number.isInteger(userId) || userId <= 0) {
     const error = new Error("user_id must be a positive integer.");
@@ -17,8 +19,8 @@ function parseUserGroupPayload(body) {
     throw error;
   }
 
-  if (!Number.isInteger(statusCode)) {
-    const error = new Error("status_code must be an integer.");
+  if (!STATUS_CODES.includes(statusCode)) {
+    const error = new Error(`status_code must be one of: ${STATUS_CODES.join(", ")}`);
     error.statusCode = 400;
     throw error;
   }
@@ -30,10 +32,24 @@ function parseUserGroupPayload(body) {
   };
 }
 
+function parseListOptions(query) {
+  const page = parsePositiveInteger(query.page, 1);
+  const pageSize = clampPageSize(query.page_size);
+  const sort = normalizeSort(query.sort_by, query.sort_dir, ["id", "user_id", "group_id", "status_code", "user_name", "display_name", "group_name", "created_at"], "id");
+
+  return {
+    search: String(query.search || "").trim() || null,
+    page,
+    pageSize,
+    sortBy: sort.sortBy,
+    sortDir: sort.sortDir
+  };
+}
+
 module.exports = {
-  async list(_req, res, next) {
+  async list(req, res, next) {
     try {
-      res.json(await userGroupModel.listUserGroups());
+      res.json(await userGroupModel.listUserGroups(parseListOptions(req.query)));
     } catch (error) {
       next(error);
     }

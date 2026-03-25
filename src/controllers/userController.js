@@ -1,12 +1,21 @@
 const userModel = require("../models/userModel");
+const { STATUS_CODES } = require("../constants/statusCodes");
+const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 
-function parseUserPayload(body) {
+function parseCreatePayload(body) {
   const userName = String(body.user_name || "").trim();
+  const displayName = String(body.display_name || "").trim();
   const userPassword = String(body.user_password || "").trim();
-  const statusCode = Number(body.status_code);
+  const statusCode = String(body.status_code || "").trim().toUpperCase();
 
   if (!userName) {
     const error = new Error("user_name is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!displayName) {
+    const error = new Error("display_name is required.");
     error.statusCode = 400;
     throw error;
   }
@@ -17,23 +26,68 @@ function parseUserPayload(body) {
     throw error;
   }
 
-  if (!Number.isInteger(statusCode)) {
-    const error = new Error("status_code must be an integer.");
+  if (!STATUS_CODES.includes(statusCode)) {
+    const error = new Error(`status_code must be one of: ${STATUS_CODES.join(", ")}`);
     error.statusCode = 400;
     throw error;
   }
 
   return {
     user_name: userName,
+    display_name: displayName,
     user_password: userPassword,
     status_code: statusCode
   };
 }
 
+function parseUpdatePayload(body) {
+  const displayName = String(body.display_name || "").trim();
+  const userPassword = String(body.user_password || "").trim();
+  const statusCode = String(body.status_code || "").trim().toUpperCase();
+
+  if (!displayName) {
+    const error = new Error("display_name is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!userPassword) {
+    const error = new Error("user_password is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!STATUS_CODES.includes(statusCode)) {
+    const error = new Error(`status_code must be one of: ${STATUS_CODES.join(", ")}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    display_name: displayName,
+    user_password: userPassword,
+    status_code: statusCode
+  };
+}
+
+function parseListOptions(query) {
+  const page = parsePositiveInteger(query.page, 1);
+  const pageSize = clampPageSize(query.page_size);
+  const sort = normalizeSort(query.sort_by, query.sort_dir, ["id", "display_name", "status_code", "user_name", "created_at"], "id");
+
+  return {
+    search: String(query.search || "").trim() || null,
+    page,
+    pageSize,
+    sortBy: sort.sortBy,
+    sortDir: sort.sortDir
+  };
+}
+
 module.exports = {
-  async list(_req, res, next) {
+  async list(req, res, next) {
     try {
-      res.json(await userModel.listUsers());
+      res.json(await userModel.listUsers(parseListOptions(req.query)));
     } catch (error) {
       next(error);
     }
@@ -54,7 +108,7 @@ module.exports = {
 
   async create(req, res, next) {
     try {
-      const created = await userModel.createUser(parseUserPayload(req.body));
+      const created = await userModel.createUser(parseCreatePayload(req.body));
       res.status(201).json(created);
     } catch (error) {
       next(error);
@@ -63,7 +117,7 @@ module.exports = {
 
   async update(req, res, next) {
     try {
-      const updated = await userModel.updateUser(Number(req.params.id), parseUserPayload(req.body));
+      const updated = await userModel.updateUser(Number(req.params.id), parseUpdatePayload(req.body));
       if (!updated) {
         return res.status(404).json({ error: "User not found." });
       }

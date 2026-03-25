@@ -113,7 +113,42 @@ If uncertainty exists, consult documentation files before proceeding.
 
 --------------------------------------------------
 
-# 8. FILE PRIORITY
+# 8. CRUD UI STANDARDS
+
+All future business models must follow the same CRUD interface pattern unless a task explicitly overrides it.
+
+Required UI pattern for each model:
+
+- A dedicated `list view`
+- A dedicated `detail view`
+- An `edit` flow launched from detail view
+- A `delete` action launched from detail view with a second confirmation step
+
+Required `list view` behavior:
+
+- Show records in table form
+- Include search at the top of the list
+- Support sortable column headers with ascending and descending order
+- Support pagination
+- Default page size is 20 and must be adjustable
+
+Required `detail view` behavior:
+
+- Show full record details
+- Not every field should be editable
+- Immutable fields such as primary keys must remain read-only
+
+Required backend support for list views:
+
+- Search
+- Sorting
+- Pagination
+
+If a new data model is added later, agents must implement the same list/detail/edit/delete structure and update database init scripts and seed scripts if schema changes are involved.
+
+--------------------------------------------------
+
+# 9. FILE PRIORITY
 
 When conflicts occur, follow this priority:
 

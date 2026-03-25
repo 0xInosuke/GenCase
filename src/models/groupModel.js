@@ -1,4 +1,5 @@
 const { queryUser } = require("../config/database");
+const { buildPagedResult } = require("../utils/listQuery");
 
 async function getOne(id) {
   const result = await queryUser(
@@ -12,13 +13,23 @@ async function getOne(id) {
 }
 
 module.exports = {
-  async listGroups() {
+  async listGroups(options) {
+    const searchValue = options.search ? `%${options.search}%` : null;
     const result = await queryUser(
-      `SELECT id, group_name, status_code, created_at, updated_at
+      `SELECT
+          id,
+          group_name,
+          status_code,
+          created_at,
+          updated_at,
+          COUNT(*) OVER() AS total_count
        FROM tb_group
-       ORDER BY id`
+       WHERE ($1::text IS NULL OR group_name ILIKE $1 OR status_code ILIKE $1)
+       ORDER BY ${options.sortBy} ${options.sortDir}, id ASC
+       LIMIT $2 OFFSET $3`,
+      [searchValue, options.pageSize, (options.page - 1) * options.pageSize]
     );
-    return result.rows;
+    return buildPagedResult(result, options.page, options.pageSize);
   },
 
   getGroupById: getOne,

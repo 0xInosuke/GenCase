@@ -1,8 +1,10 @@
 const groupModel = require("../models/groupModel");
+const { STATUS_CODES } = require("../constants/statusCodes");
+const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 
 function parseGroupPayload(body) {
   const groupName = String(body.group_name || "").trim();
-  const statusCode = Number(body.status_code);
+  const statusCode = String(body.status_code || "").trim().toUpperCase();
 
   if (!groupName) {
     const error = new Error("group_name is required.");
@@ -10,8 +12,8 @@ function parseGroupPayload(body) {
     throw error;
   }
 
-  if (!Number.isInteger(statusCode)) {
-    const error = new Error("status_code must be an integer.");
+  if (!STATUS_CODES.includes(statusCode)) {
+    const error = new Error(`status_code must be one of: ${STATUS_CODES.join(", ")}`);
     error.statusCode = 400;
     throw error;
   }
@@ -22,10 +24,24 @@ function parseGroupPayload(body) {
   };
 }
 
+function parseListOptions(query) {
+  const page = parsePositiveInteger(query.page, 1);
+  const pageSize = clampPageSize(query.page_size);
+  const sort = normalizeSort(query.sort_by, query.sort_dir, ["id", "group_name", "status_code", "created_at"], "id");
+
+  return {
+    search: String(query.search || "").trim() || null,
+    page,
+    pageSize,
+    sortBy: sort.sortBy,
+    sortDir: sort.sortDir
+  };
+}
+
 module.exports = {
-  async list(_req, res, next) {
+  async list(req, res, next) {
     try {
-      res.json(await groupModel.listGroups());
+      res.json(await groupModel.listGroups(parseListOptions(req.query)));
     } catch (error) {
       next(error);
     }

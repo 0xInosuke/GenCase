@@ -7,70 +7,80 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main class="layout">
-    <section class="hero">
+  <main class="shell">
+    <aside class="sidebar">
       <p class="eyebrow">GenCase</p>
-      <h1>Business CRUD Console</h1>
-      <p class="hero-copy">Manage users, groups, and user-to-group assignments against your local PostgreSQL database.</p>
-    </section>
+      <h1>CRUD Console</h1>
+      <p class="sidebar-copy">Each business model uses the same list, detail, edit, and delete workflow.</p>
+      <nav class="nav" id="model-nav">
+        <button type="button" data-model="users">Users</button>
+        <button type="button" data-model="groups">Groups</button>
+        <button type="button" data-model="user-groups">User Groups</button>
+      </nav>
+    </aside>
 
-    <section class="grid">
-      <article class="panel">
-        <div class="panel-header">
-          <h2>Users</h2>
-          <button id="reload-users" type="button">Refresh</button>
+    <section class="workspace">
+      <header class="workspace-header">
+        <div>
+          <p class="workspace-label" id="view-label">List View</p>
+          <h2 id="view-title">Users</h2>
         </div>
-        <form id="user-form" class="form">
-          <input type="hidden" id="user-id">
-          <label>Username<input id="user-name" required></label>
-          <label>Password<input id="user-password" required></label>
-          <label>Status Code<input id="user-status-code" type="number" value="1" required></label>
-          <div class="form-actions">
-            <button type="submit">Save User</button>
-            <button type="button" id="user-reset" class="secondary">Reset</button>
-          </div>
-        </form>
-        <div id="user-table"></div>
-      </article>
+        <button type="button" id="create-button">Create New</button>
+      </header>
 
-      <article class="panel">
-        <div class="panel-header">
-          <h2>Groups</h2>
-          <button id="reload-groups" type="button">Refresh</button>
+      <section class="panel" id="list-view">
+        <div class="toolbar">
+          <label class="toolbar-field">
+            Search
+            <input id="search-input" placeholder="Search records">
+          </label>
+          <label class="toolbar-field">
+            Page Size
+            <select id="page-size-select">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
         </div>
-        <form id="group-form" class="form">
-          <input type="hidden" id="group-id">
-          <label>Group Name<input id="group-name" required></label>
-          <label>Status Code<input id="group-status-code" type="number" value="1" required></label>
-          <div class="form-actions">
-            <button type="submit">Save Group</button>
-            <button type="button" id="group-reset" class="secondary">Reset</button>
-          </div>
-        </form>
-        <div id="group-table"></div>
-      </article>
-
-      <article class="panel panel-wide">
-        <div class="panel-header">
-          <h2>User Groups</h2>
-          <button id="reload-user-groups" type="button">Refresh</button>
+        <div id="list-table"></div>
+        <div class="pagination">
+          <button type="button" id="prev-page" class="secondary">Previous</button>
+          <span id="page-indicator">Page 1</span>
+          <button type="button" id="next-page" class="secondary">Next</button>
         </div>
-        <form id="user-group-form" class="form inline-form">
-          <input type="hidden" id="user-group-id">
-          <label>User<select id="user-group-user-id" required></select></label>
-          <label>Group<select id="user-group-group-id" required></select></label>
-          <label>Status Code<input id="user-group-status-code" type="number" value="1" required></label>
-          <div class="form-actions">
-            <button type="submit">Save Relation</button>
-            <button type="button" id="user-group-reset" class="secondary">Reset</button>
-          </div>
-        </form>
-        <div id="user-group-table"></div>
-      </article>
-    </section>
+      </section>
 
-    <section class="status-bar">
-      <p id="status-message">Loading data...</p>
+      <section class="panel hidden" id="detail-view">
+        <div class="detail-header">
+          <div>
+            <p class="workspace-label">Detail View</p>
+            <h3 id="detail-title">Record Detail</h3>
+          </div>
+          <div class="detail-actions">
+            <button type="button" id="back-to-list" class="secondary">Back</button>
+            <button type="button" id="edit-button">Edit</button>
+            <button type="button" id="delete-button" class="danger">Delete</button>
+          </div>
+        </div>
+        <div id="detail-content" class="detail-grid"></div>
+      </section>
+
+      <section class="panel hidden" id="edit-view">
+        <div class="detail-header">
+          <div>
+            <p class="workspace-label">Edit View</p>
+            <h3 id="edit-title">Edit Record</h3>
+          </div>
+          <button type="button" id="cancel-edit" class="secondary">Cancel</button>
+        </div>
+        <form id="edit-form" class="form"></form>
+      </section>
+
+      <section class="status-bar">
+        <p id="status-message">Loading data...</p>
+      </section>
     </section>
   </main>
 

@@ -51,24 +51,24 @@ $config = Get-EnvMap -Path $EnvPath
 $seedSql = @"
 TRUNCATE TABLE tb_user_group, tb_group, tb_user RESTART IDENTITY CASCADE;
 
-INSERT INTO tb_user (user_name, user_password, status_code)
+INSERT INTO tb_user (user_name, display_name, user_password, status_code)
 VALUES
-    ('alice', 'alice_password_123', 1),
-    ('bob', 'bob_password_123', 1),
-    ('charlie', 'charlie_password_123', 0);
+    ('alice', 'Alice Chen', 'alice_password_123', 'ACT'),
+    ('bob', 'Bob Tan', 'bob_password_123', 'ACT'),
+    ('charlie', 'Charlie Lim', 'charlie_password_123', 'INACT');
 
 INSERT INTO tb_group (group_name, status_code)
 VALUES
-    ('admin', 1),
-    ('editor', 1),
-    ('viewer', 1);
+    ('admin', 'ACT'),
+    ('editor', 'ACT'),
+    ('viewer', 'PEND');
 
 INSERT INTO tb_user_group (user_id, group_id, status_code)
 VALUES
-    (1, 1, 1),
-    (1, 2, 1),
-    (2, 2, 1),
-    (3, 3, 1);
+    (1, 1, 'ACT'),
+    (1, 2, 'ACT'),
+    (2, 2, 'ACT'),
+    (3, 3, 'INACT');
 "@
 
 Invoke-Psql `

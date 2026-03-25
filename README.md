@@ -25,6 +25,13 @@ Current schema:
 - `tb_user_group`
 - `v_user_group_detail`
 
+Status code values:
+
+- `ACT`: Active
+- `INACT`: Inactive
+- `DEL`: Deleted
+- `PEND`: Pending
+
 ## Setup
 
 1. Fill in [`.env`](d:/work/09%20creative/GenCase/.env)
