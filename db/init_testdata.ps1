@@ -1,0 +1,81 @@
+param(
+    [string]$EnvPath = ".env"
+)
+
+$ErrorActionPreference = "Stop"
+
+function Get-EnvMap {
+    param([string]$Path)
+
+    $values = @{}
+    foreach ($line in Get-Content $Path) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart().StartsWith("#")) {
+            continue
+        }
+
+        $parts = $line -split "=", 2
+        if ($parts.Count -eq 2) {
+            $values[$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+
+    return $values
+}
+
+function Invoke-Psql {
+    param(
+        [hashtable]$Config,
+        [string]$Database,
+        [string]$UserName,
+        [string]$Password,
+        [string]$Sql
+    )
+
+    $env:PGPASSWORD = $Password
+    & "C:\Program Files\PostgreSQL\18\bin\psql.exe" `
+        -v "ON_ERROR_STOP=1" `
+        -h $Config["DB_HOST"] `
+        -p $Config["DB_PORT"] `
+        -U $UserName `
+        -d $Database `
+        -c $Sql
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "psql command failed."
+    }
+}
+
+$config = Get-EnvMap -Path $EnvPath
+
+# Keep seed data deterministic so local testing and automated tests stay predictable.
+$seedSql = @"
+TRUNCATE TABLE tb_user_group, tb_group, tb_user RESTART IDENTITY CASCADE;
+
+INSERT INTO tb_user (user_name, user_password, status_code)
+VALUES
+    ('alice', 'alice_password_123', 1),
+    ('bob', 'bob_password_123', 1),
+    ('charlie', 'charlie_password_123', 0);
+
+INSERT INTO tb_group (group_name, status_code)
+VALUES
+    ('admin', 1),
+    ('editor', 1),
+    ('viewer', 1);
+
+INSERT INTO tb_user_group (user_id, group_id, status_code)
+VALUES
+    (1, 1, 1),
+    (1, 2, 1),
+    (2, 2, 1),
+    (3, 3, 1);
+"@
+
+Invoke-Psql `
+    -Config $config `
+    -Database $config["DB_NAME"] `
+    -UserName $config["DB_ADMIN_USER"] `
+    -Password $config["DB_ADMIN_PASSWORD"] `
+    -Sql $seedSql
+
+Write-Host "Test data inserted into '$($config["DB_NAME"])'."

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GenCase Admin</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="layout">
+    <section class="hero">
+      <p class="eyebrow">GenCase</p>
+      <h1>Business CRUD Console</h1>
+      <p class="hero-copy">Manage users, groups, and user-to-group assignments against your local PostgreSQL database.</p>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Users</h2>
+          <button id="reload-users" type="button">Refresh</button>
+        </div>
+        <form id="user-form" class="form">
+          <input type="hidden" id="user-id">
+          <label>Username<input id="user-name" required></label>
+          <label>Password<input id="user-password" required></label>
+          <label>Status Code<input id="user-status-code" type="number" value="1" required></label>
+          <div class="form-actions">
+            <button type="submit">Save User</button>
+            <button type="button" id="user-reset" class="secondary">Reset</button>
+          </div>
+        </form>
+        <div id="user-table"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Groups</h2>
+          <button id="reload-groups" type="button">Refresh</button>
+        </div>
+        <form id="group-form" class="form">
+          <input type="hidden" id="group-id">
+          <label>Group Name<input id="group-name" required></label>
+          <label>Status Code<input id="group-status-code" type="number" value="1" required></label>
+          <div class="form-actions">
+            <button type="submit">Save Group</button>
+            <button type="button" id="group-reset" class="secondary">Reset</button>
+          </div>
+        </form>
+        <div id="group-table"></div>
+      </article>
+
+      <article class="panel panel-wide">
+        <div class="panel-header">
+          <h2>User Groups</h2>
+          <button id="reload-user-groups" type="button">Refresh</button>
+        </div>
+        <form id="user-group-form" class="form inline-form">
+          <input type="hidden" id="user-group-id">
+          <label>User<select id="user-group-user-id" required></select></label>
+          <label>Group<select id="user-group-group-id" required></select></label>
+          <label>Status Code<input id="user-group-status-code" type="number" value="1" required></label>
+          <div class="form-actions">
+            <button type="submit">Save Relation</button>
+            <button type="button" id="user-group-reset" class="secondary">Reset</button>
+          </div>
+        </form>
+        <div id="user-group-table"></div>
+      </article>
+    </section>
+
+    <section class="status-bar">
+      <p id="status-message">Loading data...</p>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

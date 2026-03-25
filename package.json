@@ -1,0 +1,15 @@
+{
+  "name": "gencase",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GenCase CRUD web application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/run-tests.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "pg": "^8.20.0"
+  }
+}
