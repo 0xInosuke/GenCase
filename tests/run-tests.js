@@ -115,6 +115,12 @@ async function main() {
     const aliceCaseIds = aliceCases.body.items.map((item) => Number(item.id));
     assert.deepEqual(aliceCaseIds.slice(0, 4), [1, 2, 3, 4]);
 
+    const aliceCase1Comments = await request("/api/comments?case_id=1");
+    assert.equal(aliceCase1Comments.status, 200);
+    assert.ok(aliceCase1Comments.body.length >= 2);
+    assert.equal(aliceCase1Comments.body[0].display_name, "Alice Chen");
+    assert.equal(aliceCase1Comments.body[1].display_name, "Bob Tan");
+
     const logoutAliceSeed = await logoutCurrent();
     assert.equal(logoutAliceSeed.status, 204);
 
@@ -144,6 +150,9 @@ async function main() {
       method: "DELETE"
     });
     assert.equal(bobForbiddenDelete.status, 403);
+
+    const bobForbiddenComments = await request("/api/comments?case_id=2");
+    assert.equal(bobForbiddenComments.status, 403);
 
     const logoutBob = await logoutCurrent();
     assert.equal(logoutBob.status, 204);
@@ -238,6 +247,25 @@ async function main() {
     assert.equal(caseCreate.status, 201);
     const createdCaseId = caseCreate.body.id;
     assert.equal(caseCreate.body.wf_name, "change_management");
+
+    const commentCreate = await request("/api/comments", {
+      method: "POST",
+      body: JSON.stringify({
+        case_id: createdCaseId,
+        content: "Initial comment for this case."
+      })
+    });
+    assert.equal(commentCreate.status, 201);
+    assert.equal(commentCreate.body.display_name, "Alice Chen");
+
+    const commentList = await request(`/api/comments?case_id=${createdCaseId}`);
+    assert.equal(commentList.status, 200);
+    assert.ok(commentList.body.some((item) => item.content === "Initial comment for this case."));
+
+    const commentDeleteNotAllowed = await request(`/api/comments/${commentCreate.body.id}`, {
+      method: "DELETE"
+    });
+    assert.equal(commentDeleteNotAllowed.status, 404);
 
     const invalidCaseStage = await request("/api/cases", {
       method: "POST",

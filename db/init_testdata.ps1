@@ -49,7 +49,7 @@ $config = Get-EnvMap -Path $EnvPath
 
 # Keep seed data deterministic so local testing and automated tests stay predictable.
 $seedSql = @"
-TRUNCATE TABLE tb_case, tb_user_group, tb_group, tb_user, tb_workflow RESTART IDENTITY CASCADE;
+TRUNCATE TABLE tb_comments, tb_case, tb_user_group, tb_group, tb_user, tb_workflow RESTART IDENTITY CASCADE;
 
 INSERT INTO tb_user (user_name, display_name, user_password, status_code)
 VALUES
@@ -144,6 +144,14 @@ VALUES
         ),
         'resolved'
     );
+
+INSERT INTO tb_comments (case_id, user_id, content, status_code)
+VALUES
+    (1, 1, 'Initial onboarding case created and reviewed.', 'ACT'),
+    (1, 2, 'Added supporting documents for editor review.', 'ACT'),
+    (2, 1, 'Manager review requested updates to checklist.', 'ACT'),
+    (3, 2, 'Incident triage started and escalation noted.', 'ACT'),
+    (4, 1, 'Final resolution confirmed by admin.', 'ACT');
 "@
 
 Invoke-Psql `

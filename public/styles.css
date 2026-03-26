@@ -251,6 +251,44 @@ tbody tr:hover {
   flex-wrap: wrap;
 }
 
+.comments-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+}
+
+.comments-header h4 {
+  margin: 0;
+}
+
+.comments-list {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-item {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  padding: 12px;
+}
+
+.comment-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.comment-item p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .readonly-note {
   color: var(--muted);
   font-size: 13px;

@@ -239,6 +239,7 @@ const state = {
     cases: { sortBy: "id", sortDir: "asc" }
   },
   selectedRecord: null,
+  caseComments: [],
   referenceData: {
     users: [],
     groups: [],
@@ -310,6 +311,17 @@ function formatDetailValue(value) {
   }
 
   return String(value);
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+  return date.toLocaleString();
 }
 
 function toggleView(view) {
@@ -464,6 +476,36 @@ function renderDetail() {
   }
 
   target.innerHTML = html;
+}
+
+async function loadCaseComments(caseId) {
+  state.caseComments = await apiRequest(`/api/comments?case_id=${encodeURIComponent(caseId)}`);
+}
+
+function renderCaseComments() {
+  const section = document.getElementById("case-comments");
+  const list = document.getElementById("case-comments-list");
+  if (state.activeModel !== "cases" || !state.selectedRecord) {
+    section.classList.add("hidden");
+    list.innerHTML = "";
+    return;
+  }
+
+  section.classList.remove("hidden");
+  if (!Array.isArray(state.caseComments) || state.caseComments.length === 0) {
+    list.innerHTML = "<p class=\"readonly-note\">No comments yet.</p>";
+    return;
+  }
+
+  list.innerHTML = state.caseComments.map((comment) => `
+    <article class="comment-item">
+      <div class="comment-meta">
+        <strong>${escapeHtml(comment.display_name || "Unknown User")}</strong>
+        <span>${escapeHtml(formatDateTime(comment.created_time))}</span>
+      </div>
+      <p>${escapeHtml(comment.content || "")}</p>
+    </article>
+  `).join("");
 }
 
 function buildInput(field, record) {
@@ -623,7 +665,13 @@ function renderEditForm(mode) {
 async function openDetail(id) {
   const config = getConfig();
   state.selectedRecord = await apiRequest(`${config.endpoint}/${id}`);
+  if (state.activeModel === "cases") {
+    await loadCaseComments(state.selectedRecord.id);
+  } else {
+    state.caseComments = [];
+  }
   renderDetail();
+  renderCaseComments();
   toggleView("detail");
   updateHeader();
 }
@@ -640,6 +688,8 @@ async function switchModel(model) {
   state.selectedRecord = null;
   document.getElementById("search-input").value = state.search[model];
   document.getElementById("page-size-select").value = String(state.pagination[model].page_size);
+  state.caseComments = [];
+  renderCaseComments();
   toggleView("list");
   await refreshCurrentModel();
 }
@@ -718,6 +768,36 @@ function registerEvents() {
       toggleView("list");
       await refreshCurrentModel();
       setStatus(`${config.label.slice(0, -1) || config.label} deleted.`);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  document.getElementById("case-comment-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (state.activeModel !== "cases" || !state.selectedRecord) {
+      return;
+    }
+
+    const input = document.getElementById("case-comment-input");
+    const content = String(input.value || "").trim();
+    if (!content) {
+      setStatus("Comment content is required.", true);
+      return;
+    }
+
+    try {
+      await apiRequest("/api/comments", {
+        method: "POST",
+        body: JSON.stringify({
+          case_id: Number(state.selectedRecord.id),
+          content
+        })
+      });
+      input.value = "";
+      await loadCaseComments(state.selectedRecord.id);
+      renderCaseComments();
+      setStatus("Comment posted.");
     } catch (error) {
       setStatus(error.message, true);
     }

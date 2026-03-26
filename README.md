@@ -25,6 +25,7 @@ Current schema:
 - `tb_user_group`
 - `tb_workflow`
 - `tb_case`
+- `tb_comments`
 - `v_user_group_detail`
 - `v_case_detail`
 
@@ -33,6 +34,9 @@ Case visibility rules:
 - A logged-in user can only list/view/update/delete cases that are accessible to their active user groups.
 - Access is computed from `tb_workflow.wf_data.access` using the case `stage_code`.
 - API returns `403` when a user tries to access a case outside their permissions.
+- Case comments are shown in case detail page and ordered by `created_time` ascending.
+- Each comment shows creator `display_name`.
+- Comments can be created but not deleted by users.
 
 Status code values:
 
@@ -43,7 +47,7 @@ Status code values:
 
 ## Setup
 
-1. Fill in [`.env`](d:/work/09%20creative/GenCase/.env)
+1. Fill in [`.env`](./.env)
 2. Rebuild the database:
 
 ```powershell
@@ -76,18 +80,18 @@ Default seeded active user for login:
 
 ## Scripts
 
-- [db/init_db.ps1](d:/work/09%20creative/GenCase/db/init_db.ps1): resets the database, recreates roles, and rebuilds schema
-- [db/init_testdata.ps1](d:/work/09%20creative/GenCase/db/init_testdata.ps1): inserts deterministic seed data
-- [db/workflow_sample.json](d:/work/09%20creative/GenCase/db/workflow_sample.json): sample `wf_data` JSON for workflow records
+- [db/init_db.ps1](./db/init_db.ps1): resets the database, recreates roles, and rebuilds schema
+- [db/init_testdata.ps1](./db/init_testdata.ps1): inserts deterministic seed data
+- [db/workflow_sample.json](./db/workflow_sample.json): sample `wf_data` JSON for workflow records
 - `npm.cmd start`: starts the web server
 - `npm.cmd test`: runs integration tests against the local database
 
 ## Structure
 
-- [server.js](d:/work/09%20creative/GenCase/server.js): server entry point
-- [src/app.js](d:/work/09%20creative/GenCase/src/app.js): Express app setup and error handling
-- [src/controllers](d:/work/09%20creative/GenCase/src/controllers): request handlers
-- [src/models](d:/work/09%20creative/GenCase/src/models): database access layer
-- [src/routes](d:/work/09%20creative/GenCase/src/routes): API routes
-- [public](d:/work/09%20creative/GenCase/public): frontend assets
-- [tests/run-tests.js](d:/work/09%20creative/GenCase/tests/run-tests.js): integration smoke tests
+- [server.js](./server.js): server entry point
+- [src/app.js](./src/app.js): Express app setup and error handling
+- [src/controllers](./src/controllers): request handlers
+- [src/models](./src/models): database access layer
+- [src/routes](./src/routes): API routes
+- [public](./public): frontend assets
+- [tests/run-tests.js](./tests/run-tests.js): integration smoke tests
