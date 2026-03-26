@@ -24,7 +24,15 @@ Current schema:
 - `tb_group`
 - `tb_user_group`
 - `tb_workflow`
+- `tb_case`
 - `v_user_group_detail`
+- `v_case_detail`
+
+Case visibility rules:
+
+- A logged-in user can only list/view/update/delete cases that are accessible to their active user groups.
+- Access is computed from `tb_workflow.wf_data.access` using the case `stage_code`.
+- API returns `403` when a user tries to access a case outside their permissions.
 
 Status code values:
 
@@ -62,6 +70,9 @@ Default seeded active user for login:
 
 - `user_name`: `alice`
 - `user_password`: `alice_password_123`
+- `alice` can view all seeded cases (admin + editor groups)
+- `bob` can only view part of seeded cases (editor group)
+- `charlie` can view zero seeded cases (viewer group, no matching stage access)
 
 ## Scripts
 

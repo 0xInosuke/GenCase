@@ -49,14 +49,13 @@ $config = Get-EnvMap -Path $EnvPath
 
 # Keep seed data deterministic so local testing and automated tests stay predictable.
 $seedSql = @"
-TRUNCATE TABLE tb_user_group, tb_group, tb_user RESTART IDENTITY CASCADE;
-TRUNCATE TABLE tb_workflow RESTART IDENTITY CASCADE;
+TRUNCATE TABLE tb_case, tb_user_group, tb_group, tb_user, tb_workflow RESTART IDENTITY CASCADE;
 
 INSERT INTO tb_user (user_name, display_name, user_password, status_code)
 VALUES
     ('alice', 'Alice Chen', 'alice_password_123', 'ACT'),
     ('bob', 'Bob Tan', 'bob_password_123', 'ACT'),
-    ('charlie', 'Charlie Lim', 'charlie_password_123', 'INACT');
+    ('charlie', 'Charlie Lim', 'charlie_password_123', 'ACT');
 
 INSERT INTO tb_group (group_name, status_code)
 VALUES
@@ -69,7 +68,7 @@ VALUES
     (1, 1, 'ACT'),
     (1, 2, 'ACT'),
     (2, 2, 'ACT'),
-    (3, 3, 'INACT');
+    (3, 3, 'ACT');
 
 INSERT INTO tb_workflow (wf_name, status_code, wf_data)
 VALUES
@@ -82,9 +81,9 @@ VALUES
             'stages', jsonb_build_array('draft', 'manager_review', 'hr_review', 'completed'),
             'access', jsonb_build_object(
                 'draft', jsonb_build_array('admin', 'editor'),
-                'manager_review', jsonb_build_array('admin', 'editor'),
+                'manager_review', jsonb_build_array('admin'),
                 'hr_review', jsonb_build_array('admin'),
-                'completed', jsonb_build_array('admin', 'viewer')
+                'completed', jsonb_build_array('admin')
             )
         )
     ),
@@ -96,11 +95,54 @@ VALUES
             'description', 'Incident triage and escalation workflow.',
             'stages', jsonb_build_array('reported', 'triage', 'resolved'),
             'access', jsonb_build_object(
-                'reported', jsonb_build_array('viewer', 'editor'),
+                'reported', jsonb_build_array('admin', 'editor'),
                 'triage', jsonb_build_array('admin', 'editor'),
-                'resolved', jsonb_build_array('admin', 'viewer')
+                'resolved', jsonb_build_array('admin')
             )
         )
+    );
+
+INSERT INTO tb_case (workflow_id, case_data, stage_code)
+VALUES
+    (
+        1,
+        jsonb_build_object(
+            'case_name', 'Onboard - Candidate A',
+            'owner', 'alice',
+            'priority', 'high',
+            'notes', 'Draft stage. Admin/editor can access.'
+        ),
+        'draft'
+    ),
+    (
+        1,
+        jsonb_build_object(
+            'case_name', 'Onboard - Candidate B',
+            'owner', 'bob',
+            'priority', 'normal',
+            'notes', 'Manager review stage. Admin only.'
+        ),
+        'manager_review'
+    ),
+    (
+        2,
+        jsonb_build_object(
+            'case_name', 'Incident - Region A',
+            'owner', 'bob',
+            'priority', 'high',
+            'notes', 'Reported stage. Admin/editor can access.'
+        ),
+        'reported'
+    ),
+    (
+        2,
+        jsonb_build_object(
+            'case_name', 'Incident - Region B',
+            'owner', 'alice',
+            'priority', 'critical',
+            'notes', 'Resolved stage. Admin only.'
+        ),
+        'resolved'
     );
 "@
 

@@ -1,4 +1,5 @@
 const userModel = require("../models/userModel");
+const caseModel = require("../models/caseModel");
 const { SESSION_COOKIE_NAME, createSession, clearSession } = require("../auth/sessionStore");
 const { getRequestSession } = require("../middleware/auth");
 
@@ -26,11 +27,13 @@ module.exports = {
       }
 
       const token = createSession(user);
+      const visibleCaseCount = await caseModel.countVisibleCases(user.id);
       res.setHeader("Set-Cookie", buildCookie(token));
       return res.json({
         id: user.id,
         user_name: user.user_name,
-        display_name: user.display_name
+        display_name: user.display_name,
+        visible_case_count: visibleCaseCount
       });
     } catch (error) {
       return next(error);
@@ -53,4 +56,3 @@ module.exports = {
     return res.status(204).send();
   }
 };
-

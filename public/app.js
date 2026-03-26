@@ -165,6 +165,45 @@ const modelConfigs = {
         wf_data: JSON.parse(formData.wf_data)
       };
     }
+  },
+  cases: {
+    label: "Cases",
+    endpoint: "/api/cases",
+    listColumns: [
+      { key: "id", label: "ID", sortable: true },
+      { key: "wf_name", label: "Workflow", sortable: true },
+      { key: "stage_code", label: "Stage", sortable: true }
+    ],
+    detailFields: [
+      { key: "id", label: "ID" },
+      { key: "wf_name", label: "Workflow Name" },
+      { key: "stage_code", label: "Stage Code" },
+      { key: "created_at", label: "Created At" },
+      { key: "updated_at", label: "Updated At" }
+    ],
+    createFields: [
+      { key: "workflow_id", label: "Workflow", type: "workflow-select" },
+      { key: "stage_code", label: "Stage Code", type: "stage-select" },
+      { key: "case_data", label: "Case Data (JSON)", type: "json" }
+    ],
+    editFields: [
+      { key: "workflow_id", label: "Workflow", type: "workflow-readonly" },
+      { key: "stage_code", label: "Stage Code", type: "stage-select" },
+      { key: "case_data", label: "Case Data (JSON)", type: "json" }
+    ],
+    buildCreatePayload(formData) {
+      return {
+        workflow_id: Number(formData.workflow_id),
+        stage_code: formData.stage_code,
+        case_data: JSON.parse(formData.case_data)
+      };
+    },
+    buildUpdatePayload(_currentRecord, formData) {
+      return {
+        stage_code: formData.stage_code,
+        case_data: JSON.parse(formData.case_data)
+      };
+    }
   }
 };
 
@@ -175,30 +214,35 @@ const state = {
     users: [],
     groups: [],
     "user-groups": [],
-    workflows: []
+    workflows: [],
+    cases: []
   },
   pagination: {
     users: { page: 1, page_size: 20, total_pages: 0, total_count: 0 },
     groups: { page: 1, page_size: 20, total_pages: 0, total_count: 0 },
     "user-groups": { page: 1, page_size: 20, total_pages: 0, total_count: 0 },
-    workflows: { page: 1, page_size: 20, total_pages: 0, total_count: 0 }
+    workflows: { page: 1, page_size: 20, total_pages: 0, total_count: 0 },
+    cases: { page: 1, page_size: 20, total_pages: 0, total_count: 0 }
   },
   search: {
     users: "",
     groups: "",
     "user-groups": "",
-    workflows: ""
+    workflows: "",
+    cases: ""
   },
   sort: {
     users: { sortBy: "id", sortDir: "asc" },
     groups: { sortBy: "id", sortDir: "asc" },
     "user-groups": { sortBy: "id", sortDir: "asc" },
-    workflows: { sortBy: "id", sortDir: "asc" }
+    workflows: { sortBy: "id", sortDir: "asc" },
+    cases: { sortBy: "id", sortDir: "asc" }
   },
   selectedRecord: null,
   referenceData: {
     users: [],
-    groups: []
+    groups: [],
+    workflows: []
   }
 };
 
@@ -310,13 +354,28 @@ async function loadList(model = state.activeModel) {
 }
 
 async function loadReferences() {
-  const [usersResult, groupsResult] = await Promise.all([
+  const [usersResult, groupsResult, workflowsResult] = await Promise.all([
     apiRequest("/api/users?page=1&page_size=100&sort_by=display_name&sort_dir=asc"),
-    apiRequest("/api/groups?page=1&page_size=100&sort_by=group_name&sort_dir=asc")
+    apiRequest("/api/groups?page=1&page_size=100&sort_by=group_name&sort_dir=asc"),
+    apiRequest("/api/workflows?page=1&page_size=100&sort_by=wf_name&sort_dir=asc")
   ]);
 
   state.referenceData.users = usersResult.items;
   state.referenceData.groups = groupsResult.items;
+  state.referenceData.workflows = workflowsResult.items;
+}
+
+function getWorkflowById(workflowId) {
+  return state.referenceData.workflows.find((item) => Number(item.id) === Number(workflowId)) || null;
+}
+
+function getCaseStagesByWorkflowId(workflowId) {
+  const workflow = getWorkflowById(workflowId);
+  const stages = workflow?.wf_data?.stages;
+  if (!Array.isArray(stages)) {
+    return [];
+  }
+  return stages.map((stage) => String(stage).trim()).filter(Boolean);
 }
 
 function renderList() {
@@ -383,12 +442,28 @@ function renderDetail() {
   const config = getConfig();
   const target = document.getElementById("detail-content");
   document.getElementById("detail-title").textContent = `${config.label} Detail`;
-  target.innerHTML = config.detailFields.map((field) => `
+
+  let html = config.detailFields.map((field) => `
     <div class="detail-item">
       <p>${field.label}</p>
       <strong>${escapeHtml(formatDetailValue(state.selectedRecord?.[field.key]))}</strong>
     </div>
   `).join("");
+
+  if (state.activeModel === "cases") {
+    const caseData = state.selectedRecord?.case_data;
+    if (caseData && typeof caseData === "object" && !Array.isArray(caseData)) {
+      const entries = Object.entries(caseData);
+      html += entries.map(([key, value]) => `
+        <div class="detail-item">
+          <p>${escapeHtml(key)}</p>
+          <strong>${escapeHtml(formatDetailValue(value))}</strong>
+        </div>
+      `).join("");
+    }
+  }
+
+  target.innerHTML = html;
 }
 
 function buildInput(field, record) {
@@ -414,6 +489,34 @@ function buildInput(field, record) {
     return `
       <select name="${field.key}" required>
         ${state.referenceData.groups.map((group) => `<option value="${group.id}" ${String(value) === String(group.id) ? "selected" : ""}>${group.group_name} (#${group.id})</option>`).join("")}
+      </select>
+    `;
+  }
+
+  if (field.type === "workflow-select") {
+    const activeWorkflows = state.referenceData.workflows.filter((workflow) => workflow.status_code === "ACT");
+    return `
+      <select name="${field.key}" required>
+        ${activeWorkflows.map((workflow) => `<option value="${workflow.id}" ${String(value) === String(workflow.id) ? "selected" : ""}>${escapeHtml(workflow.wf_name)}</option>`).join("")}
+      </select>
+    `;
+  }
+
+  if (field.type === "workflow-readonly") {
+    const workflowName = record?.wf_name || "";
+    return `<input type="text" value="${escapeHtml(workflowName)}" readonly>`;
+  }
+
+  if (field.type === "stage-select") {
+    let workflowId = record?.workflow_id;
+    if (!workflowId) {
+      const activeWorkflows = state.referenceData.workflows.filter((workflow) => workflow.status_code === "ACT");
+      workflowId = activeWorkflows[0]?.id || "";
+    }
+    const stages = getCaseStagesByWorkflowId(workflowId);
+    return `
+      <select name="${field.key}" required>
+        ${stages.map((stage) => `<option value="${escapeHtml(stage)}" ${stage === String(value) ? "selected" : ""}>${escapeHtml(stage)}</option>`).join("")}
       </select>
     `;
   }
@@ -461,6 +564,19 @@ function renderEditForm(mode) {
       <button type="button" id="cancel-form" class="secondary">Cancel</button>
     </div>
   `;
+
+  if (state.activeModel === "cases") {
+    const workflowSelect = form.querySelector('select[name="workflow_id"]');
+    const stageSelect = form.querySelector('select[name="stage_code"]');
+    if (workflowSelect && stageSelect) {
+      workflowSelect.addEventListener("change", () => {
+        const stages = getCaseStagesByWorkflowId(workflowSelect.value);
+        stageSelect.innerHTML = stages
+          .map((stage) => `<option value="${escapeHtml(stage)}">${escapeHtml(stage)}</option>`)
+          .join("");
+      });
+    }
+  }
 
   form.onsubmit = async (event) => {
     event.preventDefault();
@@ -563,7 +679,7 @@ function registerEvents() {
   });
 
   document.getElementById("create-button").addEventListener("click", async () => {
-    if (state.activeModel === "user-groups") {
+    if (state.activeModel === "user-groups" || state.activeModel === "cases") {
       await loadReferences();
     }
     renderEditForm("create");
@@ -572,7 +688,7 @@ function registerEvents() {
   });
 
   document.getElementById("edit-button").addEventListener("click", async () => {
-    if (state.activeModel === "user-groups") {
+    if (state.activeModel === "user-groups" || state.activeModel === "cases") {
       await loadReferences();
     }
     renderEditForm("edit");
