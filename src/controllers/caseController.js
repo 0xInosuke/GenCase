@@ -33,6 +33,14 @@ function normalizeStageCode(value) {
   return stageCode;
 }
 
+function normalizeCaseTitle(value) {
+  const caseTitle = String(value || "").trim();
+  if (!caseTitle) {
+    fail("case_title is required.");
+  }
+  return caseTitle;
+}
+
 function getWorkflowStages(workflow) {
   const stages = workflow?.wf_data?.stages;
   if (!Array.isArray(stages) || stages.length === 0) {
@@ -56,6 +64,7 @@ function parseCreatePayload(body) {
 
   return {
     workflow_id: workflowId,
+    case_title: normalizeCaseTitle(body.case_title),
     stage_code: normalizeStageCode(body.stage_code),
     case_data: parseCaseData(body.case_data)
   };
@@ -63,6 +72,7 @@ function parseCreatePayload(body) {
 
 function parseUpdatePayload(body) {
   return {
+    case_title: normalizeCaseTitle(body.case_title),
     stage_code: normalizeStageCode(body.stage_code),
     case_data: parseCaseData(body.case_data)
   };
@@ -74,7 +84,7 @@ function parseListOptions(query) {
   const sort = normalizeSort(
     query.sort_by,
     query.sort_dir,
-    ["id", "workflow_id", "wf_name", "stage_code", "created_at"],
+    ["id", "workflow_id", "wf_name", "case_title", "stage_code", "created_at"],
     "id"
   );
 

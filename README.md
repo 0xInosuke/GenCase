@@ -37,6 +37,8 @@ Case visibility rules:
 - Case comments are shown in case detail page and ordered by `created_time` ascending.
 - Each comment shows creator `display_name`.
 - Comments can be created but not deleted by users.
+- Cases now store a dedicated `case_title` column in `tb_case`.
+- Case list view, case detail view, and case search all include `case_title`.
 
 Status code values:
 
@@ -85,6 +87,11 @@ Default seeded active user for login:
 - [db/workflow_sample.json](./db/workflow_sample.json): sample `wf_data` JSON for workflow records
 - `npm.cmd start`: starts the web server
 - `npm.cmd test`: runs integration tests against the local database
+
+## Frontend Validation
+
+- JSON input fields such as workflow data and case data are validated in the browser before submission.
+- If JSON format is invalid, the UI shows an explicit error message instead of failing silently.
 
 ## Structure
 

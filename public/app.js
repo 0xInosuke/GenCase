@@ -1,5 +1,13 @@
 const STATUS_CODES = ["ACT", "INACT", "DEL", "PEND"];
 
+function parseJsonInput(value, fieldLabel) {
+  try {
+    return JSON.parse(value);
+  } catch (_error) {
+    throw new Error(`${fieldLabel} format is invalid. Please enter valid JSON.`);
+  }
+}
+
 const modelConfigs = {
   users: {
     label: "Users",
@@ -155,14 +163,14 @@ const modelConfigs = {
       return {
         wf_name: formData.wf_name,
         status_code: formData.status_code,
-        wf_data: JSON.parse(formData.wf_data)
+        wf_data: parseJsonInput(formData.wf_data, "Workflow Data")
       };
     },
     buildUpdatePayload(_currentRecord, formData) {
       return {
         wf_name: formData.wf_name,
         status_code: formData.status_code,
-        wf_data: JSON.parse(formData.wf_data)
+        wf_data: parseJsonInput(formData.wf_data, "Workflow Data")
       };
     }
   },
@@ -171,11 +179,13 @@ const modelConfigs = {
     endpoint: "/api/cases",
     listColumns: [
       { key: "id", label: "ID", sortable: true },
+      { key: "case_title", label: "Case Title", sortable: true },
       { key: "wf_name", label: "Workflow", sortable: true },
       { key: "stage_code", label: "Stage", sortable: true }
     ],
     detailFields: [
       { key: "id", label: "ID" },
+      { key: "case_title", label: "Case Title" },
       { key: "wf_name", label: "Workflow Name" },
       { key: "stage_code", label: "Stage Code" },
       { key: "created_at", label: "Created At" },
@@ -183,25 +193,29 @@ const modelConfigs = {
     ],
     createFields: [
       { key: "workflow_id", label: "Workflow", type: "workflow-select" },
+      { key: "case_title", label: "Case Title", type: "text" },
       { key: "stage_code", label: "Stage Code", type: "stage-select" },
       { key: "case_data", label: "Case Data (JSON)", type: "json" }
     ],
     editFields: [
       { key: "workflow_id", label: "Workflow", type: "workflow-readonly" },
+      { key: "case_title", label: "Case Title", type: "text" },
       { key: "stage_code", label: "Stage Code", type: "stage-select" },
       { key: "case_data", label: "Case Data (JSON)", type: "json" }
     ],
     buildCreatePayload(formData) {
       return {
         workflow_id: Number(formData.workflow_id),
+        case_title: formData.case_title,
         stage_code: formData.stage_code,
-        case_data: JSON.parse(formData.case_data)
+        case_data: parseJsonInput(formData.case_data, "Case Data")
       };
     },
     buildUpdatePayload(_currentRecord, formData) {
       return {
+        case_title: formData.case_title,
         stage_code: formData.stage_code,
-        case_data: JSON.parse(formData.case_data)
+        case_data: parseJsonInput(formData.case_data, "Case Data")
       };
     }
   }
@@ -622,12 +636,13 @@ function renderEditForm(mode) {
 
   form.onsubmit = async (event) => {
     event.preventDefault();
-    const formData = Object.fromEntries(new FormData(form).entries());
-    const payload = isCreate
-      ? config.buildCreatePayload(formData)
-      : config.buildUpdatePayload(state.selectedRecord, formData);
 
     try {
+      const formData = Object.fromEntries(new FormData(form).entries());
+      const payload = isCreate
+        ? config.buildCreatePayload(formData)
+        : config.buildUpdatePayload(state.selectedRecord, formData);
+
       const path = isCreate ? config.endpoint : `${config.endpoint}/${state.selectedRecord.id}`;
       const method = isCreate ? "POST" : "PUT";
       const saved = await apiRequest(path, {

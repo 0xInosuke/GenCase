@@ -6,6 +6,7 @@ const CASE_DETAIL_SELECT = `
       c.id,
       c.workflow_id,
       w.wf_name,
+      c.case_title,
       c.stage_code,
       c.case_data,
       c.created_at,
@@ -72,6 +73,7 @@ module.exports = {
           c.id,
           c.workflow_id,
           w.wf_name,
+          c.case_title,
           c.stage_code,
           c.case_data,
           c.created_at,
@@ -83,6 +85,7 @@ module.exports = {
          AND (
            $2::text IS NULL
            OR w.wf_name ILIKE $2
+           OR c.case_title ILIKE $2
            OR c.stage_code ILIKE $2
            OR c.case_data::text ILIKE $2
          )
@@ -108,10 +111,10 @@ module.exports = {
 
   async createCase(payload, userId) {
     const result = await queryUser(
-      `INSERT INTO tb_case (workflow_id, case_data, stage_code)
-       VALUES ($1, $2::jsonb, $3)
+      `INSERT INTO tb_case (workflow_id, case_title, case_data, stage_code)
+       VALUES ($1, $2, $3::jsonb, $4)
        RETURNING id`,
-      [payload.workflow_id, JSON.stringify(payload.case_data), payload.stage_code]
+      [payload.workflow_id, payload.case_title, JSON.stringify(payload.case_data), payload.stage_code]
     );
     return getOneForUser(result.rows[0].id, userId);
   },
@@ -119,12 +122,13 @@ module.exports = {
   async updateCase(id, payload, userId) {
     const result = await queryUser(
       `UPDATE tb_case
-       SET case_data = $2::jsonb,
-           stage_code = $3,
+       SET case_title = $2,
+           case_data = $3::jsonb,
+           stage_code = $4,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
        RETURNING id`,
-      [id, JSON.stringify(payload.case_data), payload.stage_code]
+      [id, payload.case_title, JSON.stringify(payload.case_data), payload.stage_code]
     );
 
     if (result.rowCount === 0) {

@@ -236,6 +236,7 @@ async function main() {
       method: "POST",
       body: JSON.stringify({
         workflow_id: createdWorkflowId,
+        case_title: "Infrastructure Rollout",
         stage_code: "draft",
         case_data: {
           title: "Infra Upgrade",
@@ -247,6 +248,7 @@ async function main() {
     assert.equal(caseCreate.status, 201);
     const createdCaseId = caseCreate.body.id;
     assert.equal(caseCreate.body.wf_name, "change_management");
+    assert.equal(caseCreate.body.case_title, "Infrastructure Rollout");
 
     const commentCreate = await request("/api/comments", {
       method: "POST",
@@ -271,6 +273,7 @@ async function main() {
       method: "POST",
       body: JSON.stringify({
         workflow_id: createdWorkflowId,
+        case_title: "Invalid Stage Case",
         stage_code: "not_exists",
         case_data: {
           title: "Invalid Stage Case"
@@ -297,7 +300,7 @@ async function main() {
     assert.ok(workflows.body.items.some((item) => item.id === createdWorkflowId));
     assert.ok(workflows.body.pagination.total_count >= 1);
 
-    const cases = await request("/api/cases?search=Infra&sort_by=id&sort_dir=asc&page=1&page_size=20");
+    const cases = await request("/api/cases?search=Infrastructure&sort_by=case_title&sort_dir=asc&page=1&page_size=20");
     assert.equal(cases.status, 200);
     assert.ok(cases.body.items.some((item) => item.id === createdCaseId));
     assert.ok(cases.body.pagination.total_count >= 1);
@@ -342,6 +345,7 @@ async function main() {
     const updatedCase = await request(`/api/cases/${createdCaseId}`, {
       method: "PUT",
       body: JSON.stringify({
+        case_title: "Infrastructure Rollout Updated",
         stage_code: "security_review",
         case_data: {
           title: "Infra Upgrade",
@@ -351,6 +355,7 @@ async function main() {
       })
     });
     assert.equal(updatedCase.status, 200);
+    assert.equal(updatedCase.body.case_title, "Infrastructure Rollout Updated");
     assert.equal(updatedCase.body.stage_code, "security_review");
     assert.equal(updatedCase.body.case_data.severity, "critical");
 

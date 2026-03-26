@@ -8,47 +8,37 @@ All agents must follow the rules below before writing or modifying code.
 
 # 1. REQUIRED READING ORDER
 
-Before making any changes, agents MUST read the following files in order:
+Before making any changes, agents MUST read the following files in order when they exist:
 
-1. TASKS.md  
-   Understand the current task and its requirements.
+1. `README.md`  
+   Understand current project scope, setup steps, and seeded business rules.
 
-2. ARCHITECTURE.md  
-   Understand the system design and component relationships.
+2. `AGENTS.md`  
+   Follow repository-specific implementation rules and UI conventions.
 
-3. DATABASE.md  
-   Follow database naming conventions and schema rules.
+3. `db/init_db.ps1`  
+   Understand the current authoritative database schema.
 
-4. README.md  
-   Understand project goals and overall context.
+4. `db/init_testdata.ps1`  
+   Understand the expected deterministic seed data.
 
-Agents must not begin implementation without reading these files.
+Agents must also inspect the relevant existing code before implementation.
 
 --------------------------------------------------
 
 # 2. TASK EXECUTION RULES
 
-Agents must work strictly according to TASKS.md.
-
 Rules:
 
-- Only work on tasks marked as `status: pending`
-- Do not modify tasks assigned to other agents
-- When a task is completed, update its status to:
-
-status: done
-
-- If a task cannot be completed, update:
-
-status: blocked
-
-and explain the reason.
+- Work from the user's latest request and current repository state
+- Prefer updating the existing implementation instead of rebuilding working features from scratch
+- When business logic changes, update all affected layers together:
+  database schema, seed data, backend, frontend, tests, and documentation
+- Keep initialization scripts runnable at all times
 
 --------------------------------------------------
 
 # 3. DATABASE RULES
-
-All database design must follow DATABASE.md.
 
 Key requirements:
 
@@ -57,8 +47,14 @@ Key requirements:
 - Table names must follow defined prefix rules
 - Never create tables that violate naming conventions
 
-If database changes are required, update DATABASE.md accordingly.
-If database changes are required, update init_db.ps1 accordingly. Ensure init_db.ps1 script can always re-initiate project database.
+If database changes are required:
+
+- Update `db/init_db.ps1`
+- Update `db/init_testdata.ps1`
+- Update any affected list/detail views and APIs
+- Update tests and documentation
+
+`db/init_db.ps1` must always be able to rebuild the full local project database from scratch.
 
 --------------------------------------------------
 
@@ -77,13 +73,14 @@ Large refactors should only happen if explicitly required by a task.
 
 # 5. PROJECT STRUCTURE
 
-Agents must follow the repository structure:
+Agents must follow the current repository structure:
 
-backend/    backend services  
-frontend/   frontend application  
-scripts/    automation scripts  
+- `src/` for backend application code
+- `public/` for frontend assets
+- `db/` for database initialization and seed scripts
+- `tests/` for automated verification
 
-Do not create new top-level folders unless necessary.
+Do not introduce new top-level folders unless there is a clear need.
 
 --------------------------------------------------
 
@@ -148,15 +145,27 @@ If a new data model is added later, agents must implement the same list/detail/e
 
 --------------------------------------------------
 
-# 9. FILE PRIORITY
+# 9. DOCUMENTATION RULES
+
+When business logic changes, review all repository Markdown files and update any stale content so docs match the implemented behavior.
+
+Currently authoritative Markdown files in this repo:
+
+- `README.md`
+- `AGENTS.md`
+
+Dependency documentation inside `node_modules/` is not project documentation and should be ignored.
+
+--------------------------------------------------
+
+# 10. FILE PRIORITY
 
 When conflicts occur, follow this priority:
 
-TASKS.md  
-ARCHITECTURE.md  
-DATABASE.md  
+User request  
 AGENTS.md  
-README.md
+README.md  
+Current code and database scripts
 
 --------------------------------------------------
 

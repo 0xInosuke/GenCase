@@ -102,10 +102,11 @@ VALUES
         )
     );
 
-INSERT INTO tb_case (workflow_id, case_data, stage_code)
+INSERT INTO tb_case (workflow_id, case_title, case_data, stage_code)
 VALUES
     (
         1,
+        'Candidate A Onboarding',
         jsonb_build_object(
             'case_name', 'Onboard - Candidate A',
             'owner', 'alice',
@@ -116,6 +117,7 @@ VALUES
     ),
     (
         1,
+        'Candidate B Manager Review',
         jsonb_build_object(
             'case_name', 'Onboard - Candidate B',
             'owner', 'bob',
@@ -126,6 +128,7 @@ VALUES
     ),
     (
         2,
+        'Region A Incident Intake',
         jsonb_build_object(
             'case_name', 'Incident - Region A',
             'owner', 'bob',
@@ -136,6 +139,7 @@ VALUES
     ),
     (
         2,
+        'Region B Incident Resolution',
         jsonb_build_object(
             'case_name', 'Incident - Region B',
             'owner', 'alice',
