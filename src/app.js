@@ -1,17 +1,36 @@
 const express = require("express");
 const path = require("path");
 const apiRoutes = require("./routes");
+const authRoutes = require("./routes/authRoutes");
+const { requireApiAuth, requirePageAuth, getRequestSession } = require("./middleware/auth");
 
 const app = express();
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "..", "public")));
+app.use(express.static(path.join(__dirname, "..", "public"), { index: false }));
+
+app.get("/login", (req, res) => {
+  const { session } = getRequestSession(req);
+  if (session) {
+    return res.redirect("/");
+  }
+  res.sendFile(path.join(__dirname, "..", "public", "login.html"));
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.use("/api", apiRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api", requireApiAuth, apiRoutes);
+
+app.get("/", requirePageAuth, (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
+
+app.get("/index.html", requirePageAuth, (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
 
 app.use((err, _req, res, _next) => {
   let statusCode = err.statusCode || 500;

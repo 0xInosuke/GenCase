@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GenCase Login</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell login-shell">
+    <section class="panel login-panel">
+      <p class="eyebrow">GenCase</p>
+      <h1>Sign In</h1>
+      <p class="sidebar-copy">Login is required before accessing CRUD views.</p>
+      <form id="login-form" class="form">
+        <label>
+          Username
+          <input name="user_name" type="text" required>
+        </label>
+        <label>
+          Password
+          <input name="user_password" type="password" required>
+        </label>
+        <div class="form-actions">
+          <button type="submit">Login</button>
+        </div>
+      </form>
+      <p id="login-error" class="error-text hidden"></p>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("login-form");
+    const errorEl = document.getElementById("login-error");
+
+    async function apiRequest(path, options = {}) {
+      const response = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Request failed.");
+      }
+
+      return data;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorEl.classList.add("hidden");
+      errorEl.textContent = "";
+
+      const formData = Object.fromEntries(new FormData(form).entries());
+      try {
+        await apiRequest("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({
+            user_name: String(formData.user_name || "").trim(),
+            user_password: String(formData.user_password || "")
+          })
+        });
+        window.location.href = "/";
+      } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>
+

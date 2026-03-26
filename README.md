@@ -1,6 +1,6 @@
 # GenCase
 
-GenCase is a PostgreSQL-backed CRUD web application for managing users, groups, and user-group relations.
+GenCase is a PostgreSQL-backed CRUD web application for managing users, groups, user-group relations, and workflows.
 
 ## Stack
 
@@ -23,6 +23,7 @@ Current schema:
 - `tb_user`
 - `tb_group`
 - `tb_user_group`
+- `tb_workflow`
 - `v_user_group_detail`
 
 Status code values:
@@ -55,11 +56,18 @@ npm.cmd start
 ```
 
 The app runs at `http://127.0.0.1:3000`.
+You must login first at `http://127.0.0.1:3000/login` before accessing the CRUD console.
+
+Default seeded active user for login:
+
+- `user_name`: `alice`
+- `user_password`: `alice_password_123`
 
 ## Scripts
 
 - [db/init_db.ps1](d:/work/09%20creative/GenCase/db/init_db.ps1): resets the database, recreates roles, and rebuilds schema
 - [db/init_testdata.ps1](d:/work/09%20creative/GenCase/db/init_testdata.ps1): inserts deterministic seed data
+- [db/workflow_sample.json](d:/work/09%20creative/GenCase/db/workflow_sample.json): sample `wf_data` JSON for workflow records
 - `npm.cmd start`: starts the web server
 - `npm.cmd test`: runs integration tests against the local database
 

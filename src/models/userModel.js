@@ -13,6 +13,18 @@ async function getOne(id) {
 }
 
 module.exports = {
+  async getUserForLogin(userName, userPassword) {
+    const result = await queryUser(
+      `SELECT id, user_name, display_name
+       FROM tb_user
+       WHERE user_name = $1
+         AND user_password = $2
+         AND status_code = 'ACT'`,
+      [userName, userPassword]
+    );
+    return result.rows[0] || null;
+  },
+
   async listUsers(options) {
     const searchValue = options.search ? `%${options.search}%` : null;
     const params = [searchValue, options.pageSize, (options.page - 1) * options.pageSize];

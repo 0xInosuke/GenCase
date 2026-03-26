@@ -143,13 +143,35 @@ button.danger {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   padding: 11px 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-strong);
   font: inherit;
+}
+
+.login-shell {
+  max-width: 620px;
+  grid-template-columns: 1fr;
+  margin-top: 64px;
+}
+
+.login-panel {
+  padding: 28px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 160px;
 }
 
 .toolbar input {
@@ -214,6 +236,7 @@ tbody tr:hover {
 
 .detail-item strong {
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .form {
@@ -236,6 +259,11 @@ tbody tr:hover {
 
 .hidden {
   display: none;
+}
+
+.error-text {
+  color: var(--danger);
+  margin: 4px 0 0;
 }
 
 .status-bar {

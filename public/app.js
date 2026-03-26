@@ -124,6 +124,47 @@ const modelConfigs = {
         status_code: formData.status_code
       };
     }
+  },
+  workflows: {
+    label: "Workflows",
+    endpoint: "/api/workflows",
+    listColumns: [
+      { key: "id", label: "ID", sortable: true },
+      { key: "wf_name", label: "Workflow Name", sortable: true },
+      { key: "status_code", label: "Status Code", sortable: true }
+    ],
+    detailFields: [
+      { key: "id", label: "ID" },
+      { key: "wf_name", label: "Workflow Name" },
+      { key: "status_code", label: "Status Code" },
+      { key: "wf_data", label: "Workflow Data" },
+      { key: "created_at", label: "Created At" },
+      { key: "updated_at", label: "Updated At" }
+    ],
+    createFields: [
+      { key: "wf_name", label: "Workflow Name", type: "text" },
+      { key: "status_code", label: "Status Code", type: "status" },
+      { key: "wf_data", label: "Workflow Data (JSON)", type: "json" }
+    ],
+    editFields: [
+      { key: "wf_name", label: "Workflow Name", type: "text" },
+      { key: "status_code", label: "Status Code", type: "status" },
+      { key: "wf_data", label: "Workflow Data (JSON)", type: "json" }
+    ],
+    buildCreatePayload(formData) {
+      return {
+        wf_name: formData.wf_name,
+        status_code: formData.status_code,
+        wf_data: JSON.parse(formData.wf_data)
+      };
+    },
+    buildUpdatePayload(_currentRecord, formData) {
+      return {
+        wf_name: formData.wf_name,
+        status_code: formData.status_code,
+        wf_data: JSON.parse(formData.wf_data)
+      };
+    }
   }
 };
 
@@ -133,22 +174,26 @@ const state = {
   records: {
     users: [],
     groups: [],
-    "user-groups": []
+    "user-groups": [],
+    workflows: []
   },
   pagination: {
     users: { page: 1, page_size: 20, total_pages: 0, total_count: 0 },
     groups: { page: 1, page_size: 20, total_pages: 0, total_count: 0 },
-    "user-groups": { page: 1, page_size: 20, total_pages: 0, total_count: 0 }
+    "user-groups": { page: 1, page_size: 20, total_pages: 0, total_count: 0 },
+    workflows: { page: 1, page_size: 20, total_pages: 0, total_count: 0 }
   },
   search: {
     users: "",
     groups: "",
-    "user-groups": ""
+    "user-groups": "",
+    workflows: ""
   },
   sort: {
     users: { sortBy: "id", sortDir: "asc" },
     groups: { sortBy: "id", sortDir: "asc" },
-    "user-groups": { sortBy: "id", sortDir: "asc" }
+    "user-groups": { sortBy: "id", sortDir: "asc" },
+    workflows: { sortBy: "id", sortDir: "asc" }
   },
   selectedRecord: null,
   referenceData: {
@@ -169,6 +214,11 @@ async function apiRequest(path, options = {}) {
     ...options
   });
 
+  if (response.status === 401) {
+    window.location.href = "/login";
+    throw new Error("Authentication required.");
+  }
+
   if (response.status === 204) {
     return null;
   }
@@ -183,6 +233,39 @@ async function apiRequest(path, options = {}) {
 
 function getConfig(model = state.activeModel) {
   return modelConfigs[model];
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatInlineValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function formatDetailValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
 }
 
 function toggleView(view) {
@@ -258,7 +341,7 @@ function renderList() {
 
   const body = rows.map((row) => `
     <tr data-row-id="${row.id}">
-      ${config.listColumns.map((column) => `<td>${row[column.key] ?? ""}</td>`).join("")}
+      ${config.listColumns.map((column) => `<td>${escapeHtml(formatInlineValue(row[column.key]))}</td>`).join("")}
     </tr>
   `).join("");
 
@@ -303,7 +386,7 @@ function renderDetail() {
   target.innerHTML = config.detailFields.map((field) => `
     <div class="detail-item">
       <p>${field.label}</p>
-      <strong>${state.selectedRecord?.[field.key] ?? ""}</strong>
+      <strong>${escapeHtml(formatDetailValue(state.selectedRecord?.[field.key]))}</strong>
     </div>
   `).join("");
 }
@@ -335,7 +418,26 @@ function buildInput(field, record) {
     `;
   }
 
-  return `<input name="${field.key}" type="${field.type}" value="${value}" required>`;
+  if (field.type === "json") {
+    const jsonValue = value
+      ? JSON.stringify(value, null, 2)
+      : JSON.stringify(
+          {
+            name: "",
+            description: "",
+            stages: ["stage_one", "stage_two"],
+            access: {
+              stage_one: ["admin"],
+              stage_two: ["editor", "viewer"]
+            }
+          },
+          null,
+          2
+        );
+    return `<textarea name="${field.key}" rows="14" required>${escapeHtml(jsonValue)}</textarea>`;
+  }
+
+  return `<input name="${field.key}" type="${field.type}" value="${escapeHtml(value)}" required>`;
 }
 
 function renderEditForm(mode) {
@@ -504,10 +606,19 @@ function registerEvents() {
       setStatus(error.message, true);
     }
   });
+
+  document.getElementById("logout-button").addEventListener("click", async () => {
+    try {
+      await apiRequest("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
+  });
 }
 
 async function boot() {
   try {
+    await apiRequest("/api/auth/me");
     registerEvents();
     await loadReferences();
     await switchModel("users");

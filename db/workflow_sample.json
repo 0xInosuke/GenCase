@@ -1,0 +1,12 @@
+{
+  "name": "Procurement Approval",
+  "description": "Review and approve procurement requests with staged access control.",
+  "stages": ["request_submitted", "manager_review", "finance_review", "completed"],
+  "access": {
+    "request_submitted": ["editor", "viewer"],
+    "manager_review": ["admin", "editor"],
+    "finance_review": ["admin"],
+    "completed": ["admin", "viewer"]
+  }
+}
+

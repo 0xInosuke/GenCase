@@ -50,6 +50,7 @@ $config = Get-EnvMap -Path $EnvPath
 # Keep seed data deterministic so local testing and automated tests stay predictable.
 $seedSql = @"
 TRUNCATE TABLE tb_user_group, tb_group, tb_user RESTART IDENTITY CASCADE;
+TRUNCATE TABLE tb_workflow RESTART IDENTITY CASCADE;
 
 INSERT INTO tb_user (user_name, display_name, user_password, status_code)
 VALUES
@@ -69,6 +70,38 @@ VALUES
     (1, 2, 'ACT'),
     (2, 2, 'ACT'),
     (3, 3, 'INACT');
+
+INSERT INTO tb_workflow (wf_name, status_code, wf_data)
+VALUES
+    (
+        'employee_onboarding',
+        'ACT',
+        jsonb_build_object(
+            'name', 'Employee Onboarding',
+            'description', 'Standard onboarding approval workflow for new joiners.',
+            'stages', jsonb_build_array('draft', 'manager_review', 'hr_review', 'completed'),
+            'access', jsonb_build_object(
+                'draft', jsonb_build_array('admin', 'editor'),
+                'manager_review', jsonb_build_array('admin', 'editor'),
+                'hr_review', jsonb_build_array('admin'),
+                'completed', jsonb_build_array('admin', 'viewer')
+            )
+        )
+    ),
+    (
+        'incident_response',
+        'PEND',
+        jsonb_build_object(
+            'name', 'Incident Response',
+            'description', 'Incident triage and escalation workflow.',
+            'stages', jsonb_build_array('reported', 'triage', 'resolved'),
+            'access', jsonb_build_object(
+                'reported', jsonb_build_array('viewer', 'editor'),
+                'triage', jsonb_build_array('admin', 'editor'),
+                'resolved', jsonb_build_array('admin', 'viewer')
+            )
+        )
+    );
 "@
 
 Invoke-Psql `
