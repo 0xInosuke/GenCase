@@ -1,6 +1,8 @@
 const userModel = require("../models/userModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
+const { withUserTransaction } = require("../config/database");
+const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseCreatePayload(body) {
   const userName = String(body.user_name || "").trim();
@@ -117,7 +119,30 @@ module.exports = {
 
   async update(req, res, next) {
     try {
-      const updated = await userModel.updateUser(Number(req.params.id), parseUpdatePayload(req.body));
+      const userId = Number(req.params.id);
+      const payload = parseUpdatePayload(req.body);
+      const existingUser = await userModel.getUserById(userId);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found." });
+      }
+
+      const updated = await withUserTransaction(async (queryFn) => {
+        const nextUser = await userModel.updateUser(userId, payload, queryFn);
+        const auditEntries = buildUpdateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: userId,
+          targetType: "user",
+          previousRecord: existingUser,
+          nextRecord: nextUser,
+          dataFields: ["display_name"],
+          protectedFields: [
+            { name: "user_password", changeType: "PASSWORD_CHANGE" }
+          ]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextUser;
+      });
+
       if (!updated) {
         return res.status(404).json({ error: "User not found." });
       }

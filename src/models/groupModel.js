@@ -1,8 +1,8 @@
 const { queryUser } = require("../config/database");
 const { buildPagedResult } = require("../utils/listQuery");
 
-async function getOne(id) {
-  const result = await queryUser(
+async function getOne(id, queryFn = queryUser) {
+  const result = await queryFn(
     `SELECT id, group_name, status_code, created_at, updated_at
      FROM tb_group
      WHERE id = $1`,
@@ -34,8 +34,8 @@ module.exports = {
 
   getGroupById: getOne,
 
-  async createGroup(payload) {
-    const result = await queryUser(
+  async createGroup(payload, queryFn = queryUser) {
+    const result = await queryFn(
       `INSERT INTO tb_group (group_name, status_code)
        VALUES ($1, $2)
        RETURNING id, group_name, status_code, created_at, updated_at`,
@@ -44,8 +44,8 @@ module.exports = {
     return result.rows[0];
   },
 
-  async updateGroup(id, payload) {
-    const result = await queryUser(
+  async updateGroup(id, payload, queryFn = queryUser) {
+    const result = await queryFn(
       `UPDATE tb_group
        SET group_name = $2,
            status_code = $3,
@@ -57,8 +57,8 @@ module.exports = {
     return result.rows[0] || null;
   },
 
-  async deleteGroup(id) {
-    const result = await queryUser("DELETE FROM tb_group WHERE id = $1 RETURNING id", [id]);
+  async deleteGroup(id, queryFn = queryUser) {
+    const result = await queryFn("DELETE FROM tb_group WHERE id = $1 RETURNING id", [id]);
     return result.rows[0] || null;
   }
 };

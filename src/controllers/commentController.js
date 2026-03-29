@@ -1,5 +1,7 @@
 const commentModel = require("../models/commentModel");
 const caseModel = require("../models/caseModel");
+const { withUserTransaction } = require("../config/database");
+const { buildCommentAuditEntry, createEntries } = require("../services/auditService");
 
 function fail(message) {
   const error = new Error(message);
@@ -54,7 +56,20 @@ module.exports = {
         return res.status(403).json({ error: "You do not have access to this case." });
       }
 
-      const created = await commentModel.create(payload);
+      const created = await withUserTransaction(async (queryFn) => {
+        const newComment = await commentModel.create(payload, queryFn);
+        await createEntries(
+          [
+            buildCommentAuditEntry({
+              userId: req.sessionUser.user_id,
+              caseId: payload.case_id,
+              commentId: newComment.id
+            })
+          ],
+          queryFn
+        );
+        return newComment;
+      });
       const items = await commentModel.listByCaseId(created.case_id);
       const withDisplayName = items.find((item) => String(item.id) === String(created.id));
       res.status(201).json(withDisplayName || created);

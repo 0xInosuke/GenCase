@@ -115,6 +115,11 @@ async function main() {
     const aliceCaseIds = aliceCases.body.items.map((item) => Number(item.id));
     assert.deepEqual(aliceCaseIds.slice(0, 4), [1, 2, 3, 4]);
 
+    const aliceJsonCases = await request("/api/cases?search=%7B%22owner%22%3A%22alice%22%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(aliceJsonCases.status, 200);
+    assert.ok(aliceJsonCases.body.items.every((item) => item.case_data.owner === "alice"));
+    assert.ok(aliceJsonCases.body.items.length >= 2);
+
     const aliceCase1Comments = await request("/api/comments?case_id=1");
     assert.equal(aliceCase1Comments.status, 200);
     assert.ok(aliceCase1Comments.body.length >= 2);
@@ -133,6 +138,11 @@ async function main() {
     assert.ok(bobCaseIds.includes(3));
     assert.ok(!bobCaseIds.includes(2));
     assert.ok(!bobCaseIds.includes(4));
+
+    const bobJsonCases = await request("/api/cases?search=%7B%22owner%22%3A%22alice%22%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(bobJsonCases.status, 200);
+    assert.equal(bobJsonCases.body.items.length, 1);
+    assert.equal(bobJsonCases.body.items[0].case_title, "Candidate A Onboarding");
 
     const bobForbiddenCase = await request("/api/cases/2");
     assert.equal(bobForbiddenCase.status, 403);
@@ -153,6 +163,9 @@ async function main() {
 
     const bobForbiddenComments = await request("/api/comments?case_id=2");
     assert.equal(bobForbiddenComments.status, 403);
+
+    const bobForbiddenAudit = await request("/api/audits?target_type=case&target_id=2");
+    assert.equal(bobForbiddenAudit.status, 403);
 
     const logoutBob = await logoutCurrent();
     assert.equal(logoutBob.status, 204);
@@ -264,6 +277,10 @@ async function main() {
     assert.equal(commentList.status, 200);
     assert.ok(commentList.body.some((item) => item.content === "Initial comment for this case."));
 
+    const caseAuditAfterComment = await request(`/api/audits?target_type=case&target_id=${createdCaseId}`);
+    assert.equal(caseAuditAfterComment.status, 200);
+    assert.ok(caseAuditAfterComment.body.some((item) => item.change_type === "ADD_COMMENTS" && item.new_value === String(commentCreate.body.id)));
+
     const commentDeleteNotAllowed = await request(`/api/comments/${commentCreate.body.id}`, {
       method: "DELETE"
     });
@@ -319,6 +336,12 @@ async function main() {
     assert.equal(updatedUser.body.display_name, "Delta Updated");
     assert.equal(updatedUser.body.status_code, "INACT");
 
+    const userAudit = await request(`/api/audits?target_type=user&target_id=${createdUserId}`);
+    assert.equal(userAudit.status, 200);
+    assert.ok(userAudit.body.some((item) => item.change_type === "STATUS_CHANGE" && item.old_value === "ACT" && item.new_value === "INACT"));
+    assert.ok(userAudit.body.some((item) => item.change_type === "DATA_CHANGE"));
+    assert.ok(userAudit.body.some((item) => item.change_type === "PASSWORD_CHANGE" && item.old_value === "" && item.new_value === ""));
+
     const updatedWorkflow = await request(`/api/workflows/${createdWorkflowId}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -342,7 +365,33 @@ async function main() {
     assert.equal(updatedWorkflow.body.status_code, "PEND");
     assert.equal(updatedWorkflow.body.wf_data.stages.length, 4);
 
+    const workflowAudit = await request(`/api/audits?target_type=workflow&target_id=${createdWorkflowId}`);
+    assert.equal(workflowAudit.status, 200);
+    assert.ok(workflowAudit.body.some((item) => item.change_type === "STATUS_CHANGE" && item.new_value === "PEND"));
+    assert.ok(workflowAudit.body.some((item) => item.change_type === "DATA_CHANGE"));
+
     const updatedCase = await request(`/api/cases/${createdCaseId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        case_title: "Infrastructure Rollout",
+        stage_code: "security_review",
+        case_data: {
+          title: "Infra Upgrade",
+          severity: "high",
+          owner: "alice"
+        }
+      })
+    });
+    assert.equal(updatedCase.status, 200);
+    assert.equal(updatedCase.body.case_title, "Infrastructure Rollout");
+    assert.equal(updatedCase.body.stage_code, "security_review");
+    assert.equal(updatedCase.body.case_data.severity, "high");
+
+    const caseStatusAudit = await request(`/api/audits?target_type=case&target_id=${createdCaseId}`);
+    assert.equal(caseStatusAudit.status, 200);
+    assert.ok(caseStatusAudit.body.some((item) => item.change_type === "STATUS_CHANGE" && item.old_value === "draft" && item.new_value === "security_review"));
+
+    const updatedCaseData = await request(`/api/cases/${createdCaseId}`, {
       method: "PUT",
       body: JSON.stringify({
         case_title: "Infrastructure Rollout Updated",
@@ -354,10 +403,13 @@ async function main() {
         }
       })
     });
-    assert.equal(updatedCase.status, 200);
-    assert.equal(updatedCase.body.case_title, "Infrastructure Rollout Updated");
-    assert.equal(updatedCase.body.stage_code, "security_review");
-    assert.equal(updatedCase.body.case_data.severity, "critical");
+    assert.equal(updatedCaseData.status, 200);
+    assert.equal(updatedCaseData.body.case_title, "Infrastructure Rollout Updated");
+    assert.equal(updatedCaseData.body.case_data.severity, "critical");
+
+    const caseAudit = await request(`/api/audits?target_type=case&target_id=${createdCaseId}`);
+    assert.equal(caseAudit.status, 200);
+    assert.ok(caseAudit.body.some((item) => item.change_type === "DATA_CHANGE"));
 
     const deleteUserGroup = await request(`/api/user-groups/${createdUserGroupId}`, {
       method: "DELETE"

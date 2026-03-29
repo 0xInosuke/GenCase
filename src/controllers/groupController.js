@@ -1,6 +1,8 @@
 const groupModel = require("../models/groupModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
+const { withUserTransaction } = require("../config/database");
+const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseGroupPayload(body) {
   const groupName = String(body.group_name || "").trim();
@@ -71,7 +73,27 @@ module.exports = {
 
   async update(req, res, next) {
     try {
-      const updated = await groupModel.updateGroup(Number(req.params.id), parseGroupPayload(req.body));
+      const groupId = Number(req.params.id);
+      const payload = parseGroupPayload(req.body);
+      const existingGroup = await groupModel.getGroupById(groupId);
+      if (!existingGroup) {
+        return res.status(404).json({ error: "Group not found." });
+      }
+
+      const updated = await withUserTransaction(async (queryFn) => {
+        const nextGroup = await groupModel.updateGroup(groupId, payload, queryFn);
+        const auditEntries = buildUpdateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: groupId,
+          targetType: "group",
+          previousRecord: existingGroup,
+          nextRecord: nextGroup,
+          dataFields: ["group_name"]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextGroup;
+      });
+
       if (!updated) {
         return res.status(404).json({ error: "Group not found." });
       }

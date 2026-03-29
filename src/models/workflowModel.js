@@ -1,8 +1,8 @@
 const { queryUser } = require("../config/database");
 const { buildPagedResult } = require("../utils/listQuery");
 
-async function getOne(id) {
-  const result = await queryUser(
+async function getOne(id, queryFn = queryUser) {
+  const result = await queryFn(
     `SELECT id, wf_name, status_code, wf_data, created_at, updated_at
      FROM tb_workflow
      WHERE id = $1`,
@@ -40,8 +40,8 @@ module.exports = {
 
   getWorkflowById: getOne,
 
-  async createWorkflow(payload) {
-    const result = await queryUser(
+  async createWorkflow(payload, queryFn = queryUser) {
+    const result = await queryFn(
       `INSERT INTO tb_workflow (wf_name, status_code, wf_data)
        VALUES ($1, $2, $3::jsonb)
        RETURNING id, wf_name, status_code, wf_data, created_at, updated_at`,
@@ -50,8 +50,8 @@ module.exports = {
     return result.rows[0];
   },
 
-  async updateWorkflow(id, payload) {
-    const result = await queryUser(
+  async updateWorkflow(id, payload, queryFn = queryUser) {
+    const result = await queryFn(
       `UPDATE tb_workflow
        SET wf_name = $2,
            status_code = $3,
@@ -64,8 +64,8 @@ module.exports = {
     return result.rows[0] || null;
   },
 
-  async deleteWorkflow(id) {
-    const result = await queryUser("DELETE FROM tb_workflow WHERE id = $1 RETURNING id", [id]);
+  async deleteWorkflow(id, queryFn = queryUser) {
+    const result = await queryFn("DELETE FROM tb_workflow WHERE id = $1 RETURNING id", [id]);
     return result.rows[0] || null;
   }
 };

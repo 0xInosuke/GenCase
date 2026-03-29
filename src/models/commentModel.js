@@ -22,8 +22,8 @@ module.exports = {
     return result.rows;
   },
 
-  async create(payload) {
-    const result = await queryUser(
+  async create(payload, queryFn = queryUser) {
+    const result = await queryFn(
       `INSERT INTO tb_comments (case_id, user_id, content, status_code)
        VALUES ($1, $2, $3, $4)
        RETURNING id, case_id, user_id, created_time, status_code`,

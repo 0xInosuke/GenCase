@@ -1,6 +1,8 @@
 const caseModel = require("../models/caseModel");
 const workflowModel = require("../models/workflowModel");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
+const { withUserTransaction } = require("../config/database");
+const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function fail(message) {
   const error = new Error(message);
@@ -88,8 +90,27 @@ function parseListOptions(query) {
     "id"
   );
 
+  const rawSearch = String(query.search || "").trim();
+  let jsonSearch = null;
+  let textSearch = rawSearch || null;
+
+  if (rawSearch.startsWith("{")) {
+    try {
+      jsonSearch = JSON.parse(rawSearch);
+    } catch (_error) {
+      fail("search must be valid JSON when using JSON condition search.");
+    }
+
+    if (!jsonSearch || typeof jsonSearch !== "object" || Array.isArray(jsonSearch)) {
+      fail("JSON condition search must be a JSON object.");
+    }
+
+    textSearch = null;
+  }
+
   return {
-    search: String(query.search || "").trim() || null,
+    search: textSearch,
+    jsonSearch,
     page,
     pageSize,
     sortBy: sort.sortBy,
@@ -170,7 +191,21 @@ module.exports = {
         return res.status(403).json({ error: "You do not have access to set this stage." });
       }
 
-      const updated = await caseModel.updateCase(caseId, payload, req.sessionUser.user_id);
+      const updated = await withUserTransaction(async (queryFn) => {
+        const nextCase = await caseModel.updateCase(caseId, payload, req.sessionUser.user_id, queryFn);
+        const auditEntries = buildUpdateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: caseId,
+          targetType: "case",
+          previousRecord: existingCase,
+          nextRecord: nextCase,
+          statusField: "stage_code",
+          statusChangeType: "STATUS_CHANGE",
+          dataFields: ["case_title", "case_data"]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextCase;
+      });
       res.json(updated);
     } catch (error) {
       next(error);

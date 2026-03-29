@@ -12,6 +12,7 @@ const modelConfigs = {
   users: {
     label: "Users",
     endpoint: "/api/users",
+    targetType: "user",
     listColumns: [
       { key: "id", label: "ID", sortable: true },
       { key: "display_name", label: "Display Name", sortable: true },
@@ -56,6 +57,7 @@ const modelConfigs = {
   groups: {
     label: "Groups",
     endpoint: "/api/groups",
+    targetType: "group",
     listColumns: [
       { key: "id", label: "ID", sortable: true },
       { key: "group_name", label: "Group Name", sortable: true },
@@ -92,6 +94,7 @@ const modelConfigs = {
   "user-groups": {
     label: "User Groups",
     endpoint: "/api/user-groups",
+    targetType: "user_group",
     listColumns: [
       { key: "id", label: "ID", sortable: true },
       { key: "display_name", label: "Display Name", sortable: true },
@@ -136,6 +139,7 @@ const modelConfigs = {
   workflows: {
     label: "Workflows",
     endpoint: "/api/workflows",
+    targetType: "workflow",
     listColumns: [
       { key: "id", label: "ID", sortable: true },
       { key: "wf_name", label: "Workflow Name", sortable: true },
@@ -177,6 +181,7 @@ const modelConfigs = {
   cases: {
     label: "Cases",
     endpoint: "/api/cases",
+    targetType: "case",
     listColumns: [
       { key: "id", label: "ID", sortable: true },
       { key: "case_title", label: "Case Title", sortable: true },
@@ -254,6 +259,7 @@ const state = {
   },
   selectedRecord: null,
   caseComments: [],
+  auditRecords: [],
   referenceData: {
     users: [],
     groups: [],
@@ -349,6 +355,9 @@ function updateHeader() {
   const config = getConfig();
   document.getElementById("view-title").textContent = config.label;
   document.getElementById("view-label").textContent = state.view === "list" ? "List View" : state.view === "detail" ? "Detail View" : "Edit View";
+  document.getElementById("search-input").placeholder = state.activeModel === "cases"
+    ? 'Search text or JSON, for example {"owner":"alice"}'
+    : "Search records";
   document.querySelectorAll("#model-nav button").forEach((button) => {
     button.classList.toggle("active", button.dataset.model === state.activeModel);
   });
@@ -522,6 +531,39 @@ function renderCaseComments() {
   `).join("");
 }
 
+async function loadAuditRecords(targetType, targetId) {
+  state.auditRecords = await apiRequest(`/api/audits?target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}`);
+}
+
+function renderAuditRecords() {
+  const section = document.getElementById("audit-records");
+  const list = document.getElementById("audit-records-list");
+
+  if (!state.selectedRecord) {
+    section.classList.add("hidden");
+    list.innerHTML = "";
+    return;
+  }
+
+  section.classList.remove("hidden");
+  if (!Array.isArray(state.auditRecords) || state.auditRecords.length === 0) {
+    list.innerHTML = "<p class=\"readonly-note\">No audit records yet.</p>";
+    return;
+  }
+
+  list.innerHTML = state.auditRecords.map((audit) => `
+    <article class="audit-item">
+      <div class="comment-meta">
+        <strong>${escapeHtml(audit.display_name || "System")}</strong>
+        <span>${escapeHtml(formatDateTime(audit.timestamp))}</span>
+      </div>
+      <div><strong>${escapeHtml(audit.change_type)}</strong></div>
+      <div><span class="readonly-note">Old Value</span><br><code>${escapeHtml(formatDetailValue(audit.old_value))}</code></div>
+      <div><span class="readonly-note">New Value</span><br><code>${escapeHtml(formatDetailValue(audit.new_value))}</code></div>
+    </article>
+  `).join("");
+}
+
 function buildInput(field, record) {
   const value = record?.[field.key] ?? "";
 
@@ -656,8 +698,10 @@ function renderEditForm(mode) {
         await openDetail(saved.id);
         setStatus(`${config.label.slice(0, -1) || config.label} created.`);
       } else {
+        await loadAuditRecords(config.targetType, saved.id);
         renderDetail();
         toggleView("detail");
+        renderAuditRecords();
         updateHeader();
         setStatus(`${config.label.slice(0, -1) || config.label} updated.`);
       }
@@ -680,6 +724,7 @@ function renderEditForm(mode) {
 async function openDetail(id) {
   const config = getConfig();
   state.selectedRecord = await apiRequest(`${config.endpoint}/${id}`);
+  await loadAuditRecords(config.targetType, state.selectedRecord.id);
   if (state.activeModel === "cases") {
     await loadCaseComments(state.selectedRecord.id);
   } else {
@@ -687,6 +732,7 @@ async function openDetail(id) {
   }
   renderDetail();
   renderCaseComments();
+  renderAuditRecords();
   toggleView("detail");
   updateHeader();
 }
@@ -704,7 +750,9 @@ async function switchModel(model) {
   document.getElementById("search-input").value = state.search[model];
   document.getElementById("page-size-select").value = String(state.pagination[model].page_size);
   state.caseComments = [];
+  state.auditRecords = [];
   renderCaseComments();
+  renderAuditRecords();
   toggleView("list");
   await refreshCurrentModel();
 }
@@ -811,7 +859,9 @@ function registerEvents() {
       });
       input.value = "";
       await loadCaseComments(state.selectedRecord.id);
+      await loadAuditRecords(getConfig().targetType, state.selectedRecord.id);
       renderCaseComments();
+      renderAuditRecords();
       setStatus("Comment posted.");
     } catch (error) {
       setStatus(error.message, true);

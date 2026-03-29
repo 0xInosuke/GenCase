@@ -1,6 +1,8 @@
 const workflowModel = require("../models/workflowModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
+const { withUserTransaction } = require("../config/database");
+const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function fail(message) {
   const error = new Error(message);
@@ -156,7 +158,27 @@ module.exports = {
 
   async update(req, res, next) {
     try {
-      const updated = await workflowModel.updateWorkflow(Number(req.params.id), parseWorkflowPayload(req.body));
+      const workflowId = Number(req.params.id);
+      const payload = parseWorkflowPayload(req.body);
+      const existingWorkflow = await workflowModel.getWorkflowById(workflowId);
+      if (!existingWorkflow) {
+        return res.status(404).json({ error: "Workflow not found." });
+      }
+
+      const updated = await withUserTransaction(async (queryFn) => {
+        const nextWorkflow = await workflowModel.updateWorkflow(workflowId, payload, queryFn);
+        const auditEntries = buildUpdateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: workflowId,
+          targetType: "workflow",
+          previousRecord: existingWorkflow,
+          nextRecord: nextWorkflow,
+          dataFields: ["wf_name", "wf_data"]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextWorkflow;
+      });
+
       if (!updated) {
         return res.status(404).json({ error: "Workflow not found." });
       }

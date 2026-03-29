@@ -27,8 +27,8 @@ const CASE_VISIBILITY_EXISTS = `
   )
 `;
 
-async function getOneForUser(id, userId) {
-  const result = await queryUser(
+async function getOneForUser(id, userId, queryFn = queryUser) {
+  const result = await queryFn(
     `${CASE_DETAIL_SELECT}
      WHERE c.id = $2
        AND ${CASE_VISIBILITY_EXISTS}`,
@@ -68,6 +68,7 @@ module.exports = {
 
   async listCases(options, userId) {
     const searchValue = options.search ? `%${options.search}%` : null;
+    const jsonSearchValue = options.jsonSearch ? JSON.stringify(options.jsonSearch) : null;
     const result = await queryUser(
       `SELECT
           c.id,
@@ -82,16 +83,17 @@ module.exports = {
        FROM tb_case c
        INNER JOIN tb_workflow w ON w.id = c.workflow_id
        WHERE ${CASE_VISIBILITY_EXISTS}
+         AND ($2::jsonb IS NULL OR c.case_data @> $2::jsonb)
          AND (
-           $2::text IS NULL
-           OR w.wf_name ILIKE $2
-           OR c.case_title ILIKE $2
-           OR c.stage_code ILIKE $2
-           OR c.case_data::text ILIKE $2
+           $3::text IS NULL
+           OR w.wf_name ILIKE $3
+           OR c.case_title ILIKE $3
+           OR c.stage_code ILIKE $3
+           OR c.case_data::text ILIKE $3
          )
        ORDER BY ${options.sortBy} ${options.sortDir}, c.id ASC
-       LIMIT $3 OFFSET $4`,
-      [userId, searchValue, options.pageSize, (options.page - 1) * options.pageSize]
+       LIMIT $4 OFFSET $5`,
+      [userId, jsonSearchValue, searchValue, options.pageSize, (options.page - 1) * options.pageSize]
     );
 
     return buildPagedResult(result, options.page, options.pageSize);
@@ -99,8 +101,8 @@ module.exports = {
 
   getCaseByIdForUser: getOneForUser,
 
-  async getCaseById(id) {
-    const result = await queryUser(
+  async getCaseById(id, queryFn = queryUser) {
+    const result = await queryFn(
       `${CASE_DETAIL_SELECT}
        WHERE c.id = $1`,
       [id]
@@ -109,18 +111,18 @@ module.exports = {
     return result.rows[0] || null;
   },
 
-  async createCase(payload, userId) {
-    const result = await queryUser(
+  async createCase(payload, userId, queryFn = queryUser) {
+    const result = await queryFn(
       `INSERT INTO tb_case (workflow_id, case_title, case_data, stage_code)
        VALUES ($1, $2, $3::jsonb, $4)
        RETURNING id`,
       [payload.workflow_id, payload.case_title, JSON.stringify(payload.case_data), payload.stage_code]
     );
-    return getOneForUser(result.rows[0].id, userId);
+    return getOneForUser(result.rows[0].id, userId, queryFn);
   },
 
-  async updateCase(id, payload, userId) {
-    const result = await queryUser(
+  async updateCase(id, payload, userId, queryFn = queryUser) {
+    const result = await queryFn(
       `UPDATE tb_case
        SET case_title = $2,
            case_data = $3::jsonb,
@@ -135,11 +137,11 @@ module.exports = {
       return null;
     }
 
-    return getOneForUser(id, userId);
+    return getOneForUser(id, userId, queryFn);
   },
 
-  async deleteCase(id) {
-    const result = await queryUser("DELETE FROM tb_case WHERE id = $1 RETURNING id", [id]);
+  async deleteCase(id, queryFn = queryUser) {
+    const result = await queryFn("DELETE FROM tb_case WHERE id = $1 RETURNING id", [id]);
     return result.rows[0] || null;
   }
 };

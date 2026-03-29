@@ -1,6 +1,8 @@
 const userGroupModel = require("../models/userGroupModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
+const { withUserTransaction } = require("../config/database");
+const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseUserGroupPayload(body) {
   const userId = Number(body.user_id);
@@ -79,7 +81,27 @@ module.exports = {
 
   async update(req, res, next) {
     try {
-      const updated = await userGroupModel.updateUserGroup(Number(req.params.id), parseUserGroupPayload(req.body));
+      const relationId = Number(req.params.id);
+      const payload = parseUserGroupPayload(req.body);
+      const existingRelation = await userGroupModel.getUserGroupById(relationId);
+      if (!existingRelation) {
+        return res.status(404).json({ error: "User group relation not found." });
+      }
+
+      const updated = await withUserTransaction(async (queryFn) => {
+        const nextRelation = await userGroupModel.updateUserGroup(relationId, payload, queryFn);
+        const auditEntries = buildUpdateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: relationId,
+          targetType: "user_group",
+          previousRecord: existingRelation,
+          nextRecord: nextRelation,
+          dataFields: ["user_id", "group_id"]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextRelation;
+      });
+
       if (!updated) {
         return res.status(404).json({ error: "User group relation not found." });
       }

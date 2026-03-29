@@ -1,8 +1,8 @@
 const { queryUser } = require("../config/database");
 const { buildPagedResult } = require("../utils/listQuery");
 
-async function getOne(id) {
-  const result = await queryUser(
+async function getOne(id, queryFn = queryUser) {
+  const result = await queryFn(
     `SELECT id, user_name, display_name, user_password, status_code, created_at, updated_at
      FROM tb_user
      WHERE id = $1`,
@@ -49,8 +49,8 @@ module.exports = {
 
   getUserById: getOne,
 
-  async createUser(payload) {
-    const result = await queryUser(
+  async createUser(payload, queryFn = queryUser) {
+    const result = await queryFn(
       `INSERT INTO tb_user (user_name, display_name, user_password, status_code)
        VALUES ($1, $2, $3, $4)
        RETURNING id, user_name, display_name, user_password, status_code, created_at, updated_at`,
@@ -59,8 +59,8 @@ module.exports = {
     return result.rows[0];
   },
 
-  async updateUser(id, payload) {
-    const result = await queryUser(
+  async updateUser(id, payload, queryFn = queryUser) {
+    const result = await queryFn(
       `UPDATE tb_user
        SET display_name = $2,
            user_password = $3,
@@ -73,8 +73,8 @@ module.exports = {
     return result.rows[0] || null;
   },
 
-  async deleteUser(id) {
-    const result = await queryUser("DELETE FROM tb_user WHERE id = $1 RETURNING id", [id]);
+  async deleteUser(id, queryFn = queryUser) {
+    const result = await queryFn("DELETE FROM tb_user WHERE id = $1 RETURNING id", [id]);
     return result.rows[0] || null;
   }
 };

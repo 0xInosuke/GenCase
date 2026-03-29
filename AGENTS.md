@@ -53,6 +53,7 @@ If database changes are required:
 - Update `db/init_testdata.ps1`
 - Update any affected list/detail views and APIs
 - Update tests and documentation
+- Update audit generation if the changed model or feature should be auditable
 
 `db/init_db.ps1` must always be able to rebuild the full local project database from scratch.
 
@@ -145,7 +146,29 @@ If a new data model is added later, agents must implement the same list/detail/e
 
 --------------------------------------------------
 
-# 9. DOCUMENTATION RULES
+# 9. AUDIT RULES
+
+Auditable business changes must be recorded in `tb_audit`.
+
+Rules:
+
+- Audit records are system-generated only
+- Do not add UI flows that create, edit, or delete audit records directly
+- Show audit records in the target object's detail page
+- Order audit records by timestamp descending
+- For comments, do not create audit records under a separate comment target
+- Comment creation must create an `ADD_COMMENTS` audit record on the related case
+- For sensitive or structured values such as JSON and long text, store MD5 hashes instead of raw values
+- For simple status changes such as `status_code`, store the real old and new values
+- Use `STATUS_CHANGE` for status-like state transitions such as `status_code` and case `stage_code`
+- Use `DATA_CHANGE` for ordinary non-status field changes
+- Use `PASSWORD_CHANGE` for password updates and do not store raw or hashed old/new password values in `old_value` or `new_value`
+- Use `ADD_COMMENTS` when a user adds a comment to a case; store `old_value = 0` and `new_value = <comment_id>`
+- When adding future models or modification flows, decide whether they require audit and wire them in during the same task
+
+--------------------------------------------------
+
+# 10. DOCUMENTATION RULES
 
 When business logic changes, review all repository Markdown files and update any stale content so docs match the implemented behavior.
 
@@ -158,7 +181,7 @@ Dependency documentation inside `node_modules/` is not project documentation and
 
 --------------------------------------------------
 
-# 10. FILE PRIORITY
+# 11. FILE PRIORITY
 
 When conflicts occur, follow this priority:
 

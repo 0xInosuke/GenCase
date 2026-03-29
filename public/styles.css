@@ -289,6 +289,20 @@ tbody tr:hover {
   white-space: pre-wrap;
 }
 
+.audit-item {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.audit-item code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .readonly-note {
   color: var(--muted);
   font-size: 13px;
