@@ -1,4 +1,5 @@
 const { SESSION_COOKIE_NAME, getSession } = require("../auth/sessionStore");
+const { getApiKeyName } = require("../config/apiKeys");
 
 function parseCookies(cookieHeader) {
   if (!cookieHeader) {
@@ -54,10 +55,25 @@ function requirePageAuth(req, res, next) {
   return next();
 }
 
+function requireExternalApiKey(req, res, next) {
+  const rawKey = req.headers["x-api-key"];
+  const keyName = getApiKeyName(rawKey);
+  if (!keyName) {
+    return res.status(401).json({ error: "Valid x-api-key is required." });
+  }
+
+  req.apiClient = {
+    api_key_name: keyName
+  };
+
+  return next();
+}
+
 module.exports = {
   parseCookies,
   getRequestSession,
   requireApiAuth,
-  requirePageAuth
+  requirePageAuth,
+  requireExternalApiKey
 };
 

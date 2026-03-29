@@ -2,7 +2,8 @@ const express = require("express");
 const path = require("path");
 const apiRoutes = require("./routes");
 const authRoutes = require("./routes/authRoutes");
-const { requireApiAuth, requirePageAuth, getRequestSession } = require("./middleware/auth");
+const externalCaseRoutes = require("./routes/externalCaseRoutes");
+const { requireApiAuth, requirePageAuth, getRequestSession, requireExternalApiKey } = require("./middleware/auth");
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/external-api/cases", requireExternalApiKey, externalCaseRoutes);
 app.use("/api", requireApiAuth, apiRoutes);
 
 app.get("/", requirePageAuth, (_req, res) => {

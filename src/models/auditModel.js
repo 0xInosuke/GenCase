@@ -6,7 +6,7 @@ module.exports = {
       `SELECT
           a.id,
           a.user_id,
-          u.display_name,
+          COALESCE(u.display_name, a.user_id) AS display_name,
           a.target_id,
           a.target_type,
           a.timestamp,
@@ -14,7 +14,11 @@ module.exports = {
           a.old_value,
           a.new_value
        FROM tb_audit a
-       INNER JOIN tb_user u ON u.id = a.user_id
+       LEFT JOIN tb_user u
+         ON u.id = CASE
+           WHEN a.user_id ~ '^[0-9]+$' THEN CAST(a.user_id AS BIGINT)
+           ELSE NULL
+         END
        WHERE a.target_type = $1
          AND a.target_id = $2
        ORDER BY a.timestamp DESC, a.id DESC`,

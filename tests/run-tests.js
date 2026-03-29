@@ -4,6 +4,7 @@ const app = require("../src/app");
 let server;
 let baseUrl;
 let authCookie = "";
+const externalApiKey = "key1243456756756";
 
 async function loginAs(userName, userPassword) {
   const login = await request("/api/auth/login", {
@@ -19,6 +20,33 @@ async function loginAs(userName, userPassword) {
 
 async function logoutCurrent() {
   return request("/api/auth/logout", { method: "POST" });
+}
+
+async function requestExternal(path, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    "x-api-key": options.apiKey || externalApiKey,
+    ...(options.headers || {})
+  };
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers,
+    redirect: options.redirect || "follow",
+    ...options
+  });
+
+  if (response.status === 204) {
+    return { status: response.status, body: null, headers: response.headers };
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  const body = contentType.includes("application/json") ? await response.json() : await response.text();
+
+  return {
+    status: response.status,
+    body,
+    headers: response.headers
+  };
 }
 
 function getCookieHeader(response) {
@@ -125,6 +153,17 @@ async function main() {
     assert.ok(aliceCase1Comments.body.length >= 2);
     assert.equal(aliceCase1Comments.body[0].display_name, "Alice Chen");
     assert.equal(aliceCase1Comments.body[1].display_name, "Bob Tan");
+
+    const invalidExternalAuth = await requestExternal("/external-api/cases", { apiKey: "invalid-key" });
+    assert.equal(invalidExternalAuth.status, 401);
+
+    const externalSeedCases = await requestExternal("/external-api/cases?sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(externalSeedCases.status, 200);
+    const externalSeedIds = externalSeedCases.body.items.map((item) => Number(item.id));
+    assert.ok(externalSeedIds.includes(1));
+    assert.ok(externalSeedIds.includes(3));
+    assert.ok(!externalSeedIds.includes(2));
+    assert.ok(!externalSeedIds.includes(4));
 
     const logoutAliceSeed = await logoutCurrent();
     assert.equal(logoutAliceSeed.status, 204);
@@ -235,8 +274,8 @@ async function main() {
           description: "Track requested infrastructure changes through approvals.",
           stages: ["draft", "security_review", "approved"],
           access: {
-            draft: ["editor"],
-            security_review: ["admin", "editor"],
+            draft: ["editor", "system1_api_key"],
+            security_review: ["admin", "editor", "system1_api_key"],
             approved: ["admin", "viewer"]
           }
         }
@@ -262,6 +301,47 @@ async function main() {
     const createdCaseId = caseCreate.body.id;
     assert.equal(caseCreate.body.wf_name, "change_management");
     assert.equal(caseCreate.body.case_title, "Infrastructure Rollout");
+
+    const externalCaseCreate = await requestExternal("/external-api/cases", {
+      method: "POST",
+      body: JSON.stringify({
+        workflow_id: createdWorkflowId,
+        case_title: "External API Case",
+        stage_code: "draft",
+        case_data: {
+          source: "system1",
+          owner: "integration",
+          severity: "medium"
+        }
+      })
+    });
+    assert.equal(externalCaseCreate.status, 201);
+    const externalCreatedCaseId = externalCaseCreate.body.id;
+    assert.equal(externalCaseCreate.body.case_title, "External API Case");
+
+    const externalList = await requestExternal("/external-api/cases?search=%7B%22source%22%3A%22system1%22%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(externalList.status, 200);
+    assert.ok(externalList.body.items.some((item) => item.id === externalCreatedCaseId));
+
+    const externalUpdatedCase = await requestExternal(`/external-api/cases/${externalCreatedCaseId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        case_title: "External API Case Updated",
+        stage_code: "security_review",
+        case_data: {
+          source: "system1",
+          owner: "integration",
+          severity: "high"
+        }
+      })
+    });
+    assert.equal(externalUpdatedCase.status, 200);
+    assert.equal(externalUpdatedCase.body.case_title, "External API Case Updated");
+    assert.equal(externalUpdatedCase.body.stage_code, "security_review");
+
+    const externalAudit = await request(`/api/audits?target_type=case&target_id=${externalCreatedCaseId}`);
+    assert.equal(externalAudit.status, 200);
+    assert.ok(externalAudit.body.some((item) => item.user_id === "system1_api_key"));
 
     const commentCreate = await request("/api/comments", {
       method: "POST",
@@ -430,6 +510,11 @@ async function main() {
       method: "DELETE"
     });
     assert.equal(deleteCase.status, 204);
+
+    const deleteExternalCase = await request(`/api/cases/${externalCreatedCaseId}`, {
+      method: "DELETE"
+    });
+    assert.equal(deleteExternalCase.status, 204);
 
     const deleteWorkflowAfterCase = await request(`/api/workflows/${createdWorkflowId}`, {
       method: "DELETE"

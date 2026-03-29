@@ -1,4 +1,7 @@
 .env
 .env.*
 !.env.example
+api_keys.env
+api_keys.env.*
+!api_keys.example
 node_modules/

@@ -33,7 +33,9 @@ Current schema:
 Case visibility rules:
 
 - A logged-in user can only list/view/update/delete cases that are accessible to their active user groups.
+- External API clients can only list/view/create/update cases that are accessible to their API key name.
 - Access is computed from `tb_workflow.wf_data.access` using the case `stage_code`.
+- Workflow access lists may contain both group names and API key names.
 - API returns `403` when a user tries to access a case outside their permissions.
 - Case comments are shown in case detail page and ordered by `created_time` ascending.
 - Each comment shows creator `display_name`.
@@ -54,6 +56,7 @@ Audit rules:
 - `ADD_COMMENTS` audit entries belong to the related case, not to the comment model itself
 - Sensitive or structured values such as JSON payloads are stored as MD5 hashes in audit records
 - Simple status transitions such as `status_code` changes are stored as real values
+- External API generated audit records store the API key name in `user_id`
 
 Status code values:
 
@@ -65,20 +68,21 @@ Status code values:
 ## Setup
 
 1. Fill in [`.env`](./.env)
-2. Rebuild the database:
+2. Fill in `api_keys.env`
+3. Rebuild the database:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\db\init_db.ps1
 powershell -ExecutionPolicy Bypass -File .\db\init_testdata.ps1
 ```
 
-3. Install dependencies:
+4. Install dependencies:
 
 ```powershell
 npm.cmd install
 ```
 
-4. Start the app:
+5. Start the app:
 
 ```powershell
 npm.cmd start
@@ -100,6 +104,9 @@ Default seeded active user for login:
 - [db/init_db.ps1](./db/init_db.ps1): resets the database, recreates roles, and rebuilds schema
 - [db/init_testdata.ps1](./db/init_testdata.ps1): inserts deterministic seed data
 - [db/workflow_sample.json](./db/workflow_sample.json): sample `wf_data` JSON for workflow records
+- [API.md](./API.md): external case API usage
+- [scripts/api_test1.ps1](./scripts/api_test1.ps1): example external API create script
+- [scripts/api_test2.ps1](./scripts/api_test2.ps1): example external API list and update script
 - `npm.cmd start`: starts the web server
 - `npm.cmd test`: runs integration tests against the local database
 

@@ -164,11 +164,29 @@ Rules:
 - Use `DATA_CHANGE` for ordinary non-status field changes
 - Use `PASSWORD_CHANGE` for password updates and do not store raw or hashed old/new password values in `old_value` or `new_value`
 - Use `ADD_COMMENTS` when a user adds a comment to a case; store `old_value = 0` and `new_value = <comment_id>`
+- When external API actions create audit records, store the API key name in `tb_audit.user_id`
 - When adding future models or modification flows, decide whether they require audit and wire them in during the same task
 
 --------------------------------------------------
 
-# 10. DOCUMENTATION RULES
+# 10. EXTERNAL API RULES
+
+External API integrations must stay separate from logged-in user routes.
+
+Rules:
+
+- External API routes must use API key authentication
+- API keys must be loaded from a separate `api_keys.env` file
+- Logged-in user case listing logic and external API case listing logic must remain separate code paths
+- Workflow access lists may include both group names and API key names
+- External API access checks must use API key names only
+- External API changes that modify cases must also create audit records
+- Document external API usage in `API.md`
+- Add or update example scripts when external API behavior changes
+
+--------------------------------------------------
+
+# 11. DOCUMENTATION RULES
 
 When business logic changes, review all repository Markdown files and update any stale content so docs match the implemented behavior.
 
@@ -176,12 +194,13 @@ Currently authoritative Markdown files in this repo:
 
 - `README.md`
 - `AGENTS.md`
+- `API.md`
 
 Dependency documentation inside `node_modules/` is not project documentation and should be ignored.
 
 --------------------------------------------------
 
-# 11. FILE PRIORITY
+# 12. FILE PRIORITY
 
 When conflicts occur, follow this priority:
 

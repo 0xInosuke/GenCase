@@ -80,8 +80,8 @@ VALUES
             'description', 'Standard onboarding approval workflow for new joiners.',
             'stages', jsonb_build_array('draft', 'manager_review', 'hr_review', 'completed'),
             'access', jsonb_build_object(
-                'draft', jsonb_build_array('admin', 'editor'),
-                'manager_review', jsonb_build_array('admin'),
+                'draft', jsonb_build_array('admin', 'editor', 'system1_api_key'),
+                'manager_review', jsonb_build_array('admin', 'system2_api_key'),
                 'hr_review', jsonb_build_array('admin'),
                 'completed', jsonb_build_array('admin')
             )
@@ -95,7 +95,7 @@ VALUES
             'description', 'Incident triage and escalation workflow.',
             'stages', jsonb_build_array('reported', 'triage', 'resolved'),
             'access', jsonb_build_object(
-                'reported', jsonb_build_array('admin', 'editor'),
+                'reported', jsonb_build_array('admin', 'editor', 'system1_api_key'),
                 'triage', jsonb_build_array('admin', 'editor'),
                 'resolved', jsonb_build_array('admin')
             )
@@ -159,14 +159,14 @@ VALUES
 
 INSERT INTO tb_audit (user_id, target_id, target_type, timestamp, change_type, old_value, new_value)
 VALUES
-    (1, 3, 'user', CURRENT_TIMESTAMP - INTERVAL '6 day', 'STATUS_CHANGE', 'PEND', 'ACT'),
-    (1, 2, 'workflow', CURRENT_TIMESTAMP - INTERVAL '5 day', 'STATUS_CHANGE', 'ACT', 'PEND'),
-    (2, 1, 'case', CURRENT_TIMESTAMP - INTERVAL '4 day', 'DATA_CHANGE', 'md5:5dfae3f94d0f8d6507ecda95e761f19b', 'md5:bf62922f1f37af76d4d22dd53f3407aa'),
-    (1, 1, 'case', CURRENT_TIMESTAMP - INTERVAL '3 day', 'ADD_COMMENTS', '0', '1'),
-    (2, 1, 'case', CURRENT_TIMESTAMP - INTERVAL '2 day', 'ADD_COMMENTS', '0', '2'),
-    (1, 2, 'case', CURRENT_TIMESTAMP - INTERVAL '36 hour', 'ADD_COMMENTS', '0', '3'),
-    (2, 3, 'case', CURRENT_TIMESTAMP - INTERVAL '24 hour', 'ADD_COMMENTS', '0', '4'),
-    (1, 4, 'case', CURRENT_TIMESTAMP - INTERVAL '12 hour', 'ADD_COMMENTS', '0', '5');
+    ('1', 3, 'user', CURRENT_TIMESTAMP - INTERVAL '6 day', 'STATUS_CHANGE', 'PEND', 'ACT'),
+    ('1', 2, 'workflow', CURRENT_TIMESTAMP - INTERVAL '5 day', 'STATUS_CHANGE', 'ACT', 'PEND'),
+    ('2', 1, 'case', CURRENT_TIMESTAMP - INTERVAL '4 day', 'DATA_CHANGE', 'md5:5dfae3f94d0f8d6507ecda95e761f19b', 'md5:bf62922f1f37af76d4d22dd53f3407aa'),
+    ('1', 1, 'case', CURRENT_TIMESTAMP - INTERVAL '3 day', 'ADD_COMMENTS', '0', '1'),
+    ('2', 1, 'case', CURRENT_TIMESTAMP - INTERVAL '2 day', 'ADD_COMMENTS', '0', '2'),
+    ('1', 2, 'case', CURRENT_TIMESTAMP - INTERVAL '36 hour', 'ADD_COMMENTS', '0', '3'),
+    ('2', 3, 'case', CURRENT_TIMESTAMP - INTERVAL '24 hour', 'ADD_COMMENTS', '0', '4'),
+    ('1', 4, 'case', CURRENT_TIMESTAMP - INTERVAL '12 hour', 'ADD_COMMENTS', '0', '5');
 "@
 
 Invoke-Psql `
