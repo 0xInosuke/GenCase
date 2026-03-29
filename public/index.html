@@ -32,6 +32,7 @@
           <button type="button" id="logout-button" class="secondary">Logout</button>
         </div>
       </header>
+      <section id="page-toast" class="page-toast hidden" aria-live="polite"></section>
 
       <section class="panel" id="list-view">
         <div class="toolbar">
@@ -88,6 +89,7 @@
         <section id="audit-records" class="comments-section hidden">
           <div class="comments-header">
             <h4>Audit Records</h4>
+            <button type="button" id="toggle-audit-button" class="secondary compact">Collapse</button>
           </div>
           <div id="audit-records-list" class="comments-list"></div>
         </section>
@@ -102,10 +104,6 @@
           <button type="button" id="cancel-edit" class="secondary">Cancel</button>
         </div>
         <form id="edit-form" class="form"></form>
-      </section>
-
-      <section class="status-bar">
-        <p id="status-message">Loading data...</p>
       </section>
     </section>
   </main>

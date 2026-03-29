@@ -136,17 +136,29 @@ async function main() {
     const login = await loginAs("alice", "alice_password_123");
     assert.equal(login.status, 200);
     assert.ok(authCookie.includes("gencase_session="));
-    assert.ok(login.body.visible_case_count >= 4);
+    assert.equal(login.body.visible_case_count, 20);
+
+    const seededUsers = await request("/api/users?sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(seededUsers.status, 200);
+    assert.equal(seededUsers.body.pagination.total_count, 10);
+
+    const seededGroups = await request("/api/groups?sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(seededGroups.status, 200);
+    assert.equal(seededGroups.body.pagination.total_count, 5);
+
+    const seededWorkflows = await request("/api/workflows?sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(seededWorkflows.status, 200);
+    assert.equal(seededWorkflows.body.pagination.total_count, 5);
 
     const aliceCases = await request("/api/cases?sort_by=id&sort_dir=asc&page=1&page_size=20");
     assert.equal(aliceCases.status, 200);
     const aliceCaseIds = aliceCases.body.items.map((item) => Number(item.id));
-    assert.deepEqual(aliceCaseIds.slice(0, 4), [1, 2, 3, 4]);
+    assert.deepEqual(aliceCaseIds, Array.from({ length: 20 }, (_value, index) => index + 1));
 
-    const aliceJsonCases = await request("/api/cases?search=%7B%22owner%22%3A%22alice%22%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
+    const aliceJsonCases = await request("/api/cases?search=%7B%22applicant%22%3A%7B%22region%22%3A%22APAC%22%7D%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
     assert.equal(aliceJsonCases.status, 200);
-    assert.ok(aliceJsonCases.body.items.every((item) => item.case_data.owner === "alice"));
-    assert.ok(aliceJsonCases.body.items.length >= 2);
+    assert.equal(aliceJsonCases.body.items.length, 1);
+    assert.equal(aliceJsonCases.body.items[0].case_title, "Candidate A Onboarding");
 
     const aliceCase1Comments = await request("/api/comments?case_id=1");
     assert.equal(aliceCase1Comments.status, 200);
@@ -161,9 +173,12 @@ async function main() {
     assert.equal(externalSeedCases.status, 200);
     const externalSeedIds = externalSeedCases.body.items.map((item) => Number(item.id));
     assert.ok(externalSeedIds.includes(1));
-    assert.ok(externalSeedIds.includes(3));
+    assert.ok(externalSeedIds.includes(5));
+    assert.ok(externalSeedIds.includes(9));
+    assert.ok(externalSeedIds.includes(17));
     assert.ok(!externalSeedIds.includes(2));
     assert.ok(!externalSeedIds.includes(4));
+    assert.ok(!externalSeedIds.includes(7));
 
     const logoutAliceSeed = await logoutCurrent();
     assert.equal(logoutAliceSeed.status, 204);
@@ -174,11 +189,13 @@ async function main() {
     assert.equal(bobCases.status, 200);
     const bobCaseIds = bobCases.body.items.map((item) => Number(item.id));
     assert.ok(bobCaseIds.includes(1));
-    assert.ok(bobCaseIds.includes(3));
+    assert.ok(bobCaseIds.includes(5));
+    assert.ok(bobCaseIds.includes(13));
     assert.ok(!bobCaseIds.includes(2));
     assert.ok(!bobCaseIds.includes(4));
+    assert.ok(!bobCaseIds.includes(7));
 
-    const bobJsonCases = await request("/api/cases?search=%7B%22owner%22%3A%22alice%22%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
+    const bobJsonCases = await request("/api/cases?search=%7B%22applicant%22%3A%7B%22region%22%3A%22APAC%22%7D%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
     assert.equal(bobJsonCases.status, 200);
     assert.equal(bobJsonCases.body.items.length, 1);
     assert.equal(bobJsonCases.body.items[0].case_title, "Candidate A Onboarding");
@@ -322,6 +339,11 @@ async function main() {
     const externalList = await requestExternal("/external-api/cases?search=%7B%22source%22%3A%22system1%22%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
     assert.equal(externalList.status, 200);
     assert.ok(externalList.body.items.some((item) => item.id === externalCreatedCaseId));
+
+    const externalNestedList = await requestExternal("/external-api/cases?search=%7B%22applicant%22%3A%7B%22region%22%3A%22APAC%22%7D%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
+    assert.equal(externalNestedList.status, 200);
+    assert.equal(externalNestedList.body.items.length, 1);
+    assert.equal(externalNestedList.body.items[0].case_title, "Candidate A Onboarding");
 
     const externalUpdatedCase = await requestExternal(`/external-api/cases/${externalCreatedCaseId}`, {
       method: "PUT",

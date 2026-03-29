@@ -14,17 +14,17 @@ const modelConfigs = {
     endpoint: "/api/users",
     targetType: "user",
     listColumns: [
-      { key: "id", label: "ID", sortable: true },
-      { key: "display_name", label: "Display Name", sortable: true },
-      { key: "status_code", label: "Status Code", sortable: true }
+      { key: "id", label: "ID", sortable: true, width: "84px" },
+      { key: "display_name", label: "Display Name", sortable: true, width: "minmax(220px, 1.4fr)" },
+      { key: "status_code", label: "Status Code", sortable: true, width: "130px" }
     ],
     detailFields: [
-      { key: "id", label: "ID" },
-      { key: "user_name", label: "Username" },
-      { key: "display_name", label: "Display Name" },
-      { key: "status_code", label: "Status Code" },
-      { key: "created_at", label: "Created At" },
-      { key: "updated_at", label: "Updated At" }
+      { key: "id", label: "ID", span: "half", tone: "meta" },
+      { key: "user_name", label: "Username", span: "half" },
+      { key: "display_name", label: "Display Name", span: "half" },
+      { key: "status_code", label: "Status Code", span: "half" },
+      { key: "created_at", label: "Created At", span: "half", tone: "meta" },
+      { key: "updated_at", label: "Updated At", span: "half", tone: "meta" }
     ],
     createFields: [
       { key: "user_name", label: "Username", type: "text" },
@@ -59,16 +59,16 @@ const modelConfigs = {
     endpoint: "/api/groups",
     targetType: "group",
     listColumns: [
-      { key: "id", label: "ID", sortable: true },
-      { key: "group_name", label: "Group Name", sortable: true },
-      { key: "status_code", label: "Status Code", sortable: true }
+      { key: "id", label: "ID", sortable: true, width: "84px" },
+      { key: "group_name", label: "Group Name", sortable: true, width: "minmax(220px, 1.4fr)" },
+      { key: "status_code", label: "Status Code", sortable: true, width: "130px" }
     ],
     detailFields: [
-      { key: "id", label: "ID" },
-      { key: "group_name", label: "Group Name" },
-      { key: "status_code", label: "Status Code" },
-      { key: "created_at", label: "Created At" },
-      { key: "updated_at", label: "Updated At" }
+      { key: "id", label: "ID", span: "half", tone: "meta" },
+      { key: "group_name", label: "Group Name", span: "half" },
+      { key: "status_code", label: "Status Code", span: "half" },
+      { key: "created_at", label: "Created At", span: "half", tone: "meta" },
+      { key: "updated_at", label: "Updated At", span: "half", tone: "meta" }
     ],
     createFields: [
       { key: "group_name", label: "Group Name", type: "text" },
@@ -96,20 +96,20 @@ const modelConfigs = {
     endpoint: "/api/user-groups",
     targetType: "user_group",
     listColumns: [
-      { key: "id", label: "ID", sortable: true },
-      { key: "display_name", label: "Display Name", sortable: true },
-      { key: "group_name", label: "Group Name", sortable: true },
-      { key: "status_code", label: "Status Code", sortable: true }
+      { key: "id", label: "ID", sortable: true, width: "84px" },
+      { key: "display_name", label: "Display Name", sortable: true, width: "minmax(220px, 1.2fr)" },
+      { key: "group_name", label: "Group Name", sortable: true, width: "minmax(200px, 1fr)" },
+      { key: "status_code", label: "Status Code", sortable: true, width: "130px" }
     ],
     detailFields: [
-      { key: "id", label: "ID" },
-      { key: "user_id", label: "User ID" },
-      { key: "display_name", label: "Display Name" },
-      { key: "group_id", label: "Group ID" },
-      { key: "group_name", label: "Group Name" },
-      { key: "status_code", label: "Status Code" },
-      { key: "created_at", label: "Created At" },
-      { key: "updated_at", label: "Updated At" }
+      { key: "id", label: "ID", span: "half", tone: "meta" },
+      { key: "user_id", label: "User ID", span: "half" },
+      { key: "display_name", label: "Display Name", span: "half" },
+      { key: "group_id", label: "Group ID", span: "half" },
+      { key: "group_name", label: "Group Name", span: "half" },
+      { key: "status_code", label: "Status Code", span: "half" },
+      { key: "created_at", label: "Created At", span: "half", tone: "meta" },
+      { key: "updated_at", label: "Updated At", span: "half", tone: "meta" }
     ],
     createFields: [
       { key: "user_id", label: "User", type: "user-select" },
@@ -141,17 +141,17 @@ const modelConfigs = {
     endpoint: "/api/workflows",
     targetType: "workflow",
     listColumns: [
-      { key: "id", label: "ID", sortable: true },
-      { key: "wf_name", label: "Workflow Name", sortable: true },
-      { key: "status_code", label: "Status Code", sortable: true }
+      { key: "id", label: "ID", sortable: true, width: "84px" },
+      { key: "wf_name", label: "Workflow Name", sortable: true, width: "minmax(260px, 1.6fr)" },
+      { key: "status_code", label: "Status Code", sortable: true, width: "130px" }
     ],
     detailFields: [
-      { key: "id", label: "ID" },
-      { key: "wf_name", label: "Workflow Name" },
-      { key: "status_code", label: "Status Code" },
-      { key: "wf_data", label: "Workflow Data" },
-      { key: "created_at", label: "Created At" },
-      { key: "updated_at", label: "Updated At" }
+      { key: "id", label: "ID", span: "half", tone: "meta" },
+      { key: "wf_name", label: "Workflow Name", span: "half" },
+      { key: "status_code", label: "Status Code", span: "half" },
+      { key: "created_at", label: "Created At", span: "half", tone: "meta" },
+      { key: "updated_at", label: "Updated At", span: "half", tone: "meta" },
+      { key: "wf_data", label: "Workflow Data", span: "full" }
     ],
     createFields: [
       { key: "wf_name", label: "Workflow Name", type: "text" },
@@ -183,18 +183,19 @@ const modelConfigs = {
     endpoint: "/api/cases",
     targetType: "case",
     listColumns: [
-      { key: "id", label: "ID", sortable: true },
-      { key: "case_title", label: "Case Title", sortable: true },
-      { key: "wf_name", label: "Workflow", sortable: true },
-      { key: "stage_code", label: "Stage", sortable: true }
+      { key: "id", label: "ID", sortable: true, width: "84px" },
+      { key: "case_title", label: "Case Title", sortable: true, width: "minmax(280px, 1.8fr)" },
+      { key: "wf_name", label: "Workflow", sortable: true, width: "minmax(220px, 1.2fr)" },
+      { key: "stage_code", label: "Stage", sortable: true, width: "150px" }
     ],
     detailFields: [
-      { key: "id", label: "ID" },
-      { key: "case_title", label: "Case Title" },
-      { key: "wf_name", label: "Workflow Name" },
-      { key: "stage_code", label: "Stage Code" },
-      { key: "created_at", label: "Created At" },
-      { key: "updated_at", label: "Updated At" }
+      { key: "id", label: "ID", span: "half", tone: "meta" },
+      { key: "case_title", label: "Case Title", span: "half" },
+      { key: "wf_name", label: "Workflow Name", span: "half" },
+      { key: "stage_code", label: "Stage Code", span: "half" },
+      { key: "created_at", label: "Created At", span: "half", tone: "meta" },
+      { key: "updated_at", label: "Updated At", span: "half", tone: "meta" },
+      { key: "case_data", label: "Case Data", span: "full" }
     ],
     createFields: [
       { key: "workflow_id", label: "Workflow", type: "workflow-select" },
@@ -260,17 +261,40 @@ const state = {
   selectedRecord: null,
   caseComments: [],
   auditRecords: [],
+  auditExpanded: true,
   referenceData: {
     users: [],
     groups: [],
     workflows: []
-  }
+  },
+  toastTimer: null
 };
 
 function setStatus(message, isError = false) {
-  const el = document.getElementById("status-message");
+  const el = document.getElementById("page-toast");
   el.textContent = message;
-  el.style.color = isError ? "#b42318" : "#1d1a17";
+  el.classList.remove("hidden");
+  el.classList.toggle("is-error", isError);
+
+  if (state.toastTimer) {
+    window.clearTimeout(state.toastTimer);
+  }
+
+  state.toastTimer = window.setTimeout(() => {
+    clearStatus();
+  }, 2400);
+}
+
+function clearStatus() {
+  const el = document.getElementById("page-toast");
+  el.textContent = "";
+  el.classList.add("hidden");
+  el.classList.remove("is-error");
+
+  if (state.toastTimer) {
+    window.clearTimeout(state.toastTimer);
+    state.toastTimer = null;
+  }
 }
 
 async function apiRequest(path, options = {}) {
@@ -331,6 +355,25 @@ function formatDetailValue(value) {
   }
 
   return String(value);
+}
+
+function isMultilineValue(value, field = null) {
+  if (field?.span === "full") {
+    return true;
+  }
+
+  return typeof value === "object" && value !== null;
+}
+
+function getDetailItemClass(field) {
+  const classes = ["detail-item"];
+  if (field?.span === "full") {
+    classes.push("detail-item--full");
+  }
+  if (field?.tone === "meta") {
+    classes.push("detail-item--meta");
+  }
+  return classes.join(" ");
 }
 
 function formatDateTime(value) {
@@ -438,9 +481,13 @@ function renderList() {
       ${config.listColumns.map((column) => `<td>${escapeHtml(formatInlineValue(row[column.key]))}</td>`).join("")}
     </tr>
   `).join("");
+  const colgroup = config.listColumns
+    .map((column) => `<col style="width:${column.width || "auto"}">`)
+    .join("");
 
   target.innerHTML = `
     <table>
+      <colgroup>${colgroup}</colgroup>
       <thead><tr>${headers}</tr></thead>
       <tbody>${body}</tbody>
     </table>
@@ -478,27 +525,54 @@ function renderDetail() {
   const target = document.getElementById("detail-content");
   document.getElementById("detail-title").textContent = `${config.label} Detail`;
 
-  let html = config.detailFields.map((field) => `
-    <div class="detail-item">
-      <p>${field.label}</p>
-      <strong>${escapeHtml(formatDetailValue(state.selectedRecord?.[field.key]))}</strong>
-    </div>
-  `).join("");
+  target.innerHTML = config.detailFields.map((field) => {
+    const rawValue = state.selectedRecord?.[field.key];
+    const formattedValue = field.key.endsWith("_at") || field.key === "timestamp"
+      ? formatDateTime(rawValue)
+      : formatDetailValue(rawValue);
+    const nestedValue = state.activeModel === "cases" && field.key === "case_data"
+      ? renderNestedBlocks(rawValue)
+      : "";
+    const isNestedCaseData = Boolean(nestedValue);
+    const valueClass = isMultilineValue(rawValue, field) ? "detail-value detail-value--multiline" : "detail-value";
+    const valueTag = isMultilineValue(rawValue, field) ? "pre" : "div";
 
-  if (state.activeModel === "cases") {
-    const caseData = state.selectedRecord?.case_data;
-    if (caseData && typeof caseData === "object" && !Array.isArray(caseData)) {
-      const entries = Object.entries(caseData);
-      html += entries.map(([key, value]) => `
-        <div class="detail-item">
-          <p>${escapeHtml(key)}</p>
-          <strong>${escapeHtml(formatDetailValue(value))}</strong>
-        </div>
-      `).join("");
-    }
+    return `
+      <div class="${getDetailItemClass(field)}">
+        <p>${field.label}</p>
+        ${isNestedCaseData ? nestedValue : `<${valueTag} class="${valueClass}">${escapeHtml(formattedValue)}</${valueTag}>`}
+      </div>
+    `;
+  }).join("");
+}
+
+function renderNestedBlocks(value, path = []) {
+  if (!value || typeof value !== "object") {
+    return `<div class="detail-nested-block"><p>${escapeHtml(path[path.length - 1] || "Value")}</p><div class="detail-nested-value">${escapeHtml(formatDetailValue(value))}</div></div>`;
   }
 
-  target.innerHTML = html;
+  const entries = Array.isArray(value)
+    ? value.map((item, index) => [String(index), item])
+    : Object.entries(value);
+
+  return `
+    <div class="detail-nested">
+      <div class="detail-nested-level">
+        ${entries.map(([key, childValue]) => {
+          const isObject = childValue && typeof childValue === "object";
+          const blockClass = isObject ? "detail-nested-block detail-nested-block--full" : "detail-nested-block";
+          return `
+            <section class="${blockClass}">
+              <p>${escapeHtml(key)}</p>
+              ${isObject
+                ? renderNestedBlocks(childValue, [...path, key])
+                : `<div class="detail-nested-value">${escapeHtml(formatDetailValue(childValue))}</div>`}
+            </section>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
 }
 
 async function loadCaseComments(caseId) {
@@ -538,14 +612,18 @@ async function loadAuditRecords(targetType, targetId) {
 function renderAuditRecords() {
   const section = document.getElementById("audit-records");
   const list = document.getElementById("audit-records-list");
+  const toggleButton = document.getElementById("toggle-audit-button");
 
   if (!state.selectedRecord) {
     section.classList.add("hidden");
     list.innerHTML = "";
+    section.classList.remove("audit-collapsed");
     return;
   }
 
   section.classList.remove("hidden");
+  section.classList.toggle("audit-collapsed", !state.auditExpanded);
+  toggleButton.textContent = state.auditExpanded ? "Collapse" : "Expand";
   if (!Array.isArray(state.auditRecords) || state.auditRecords.length === 0) {
     list.innerHTML = "<p class=\"readonly-note\">No audit records yet.</p>";
     return;
@@ -724,6 +802,7 @@ function renderEditForm(mode) {
 async function openDetail(id) {
   const config = getConfig();
   state.selectedRecord = await apiRequest(`${config.endpoint}/${id}`);
+  state.auditExpanded = false;
   await loadAuditRecords(config.targetType, state.selectedRecord.id);
   if (state.activeModel === "cases") {
     await loadCaseComments(state.selectedRecord.id);
@@ -747,6 +826,7 @@ async function refreshCurrentModel() {
 async function switchModel(model) {
   state.activeModel = model;
   state.selectedRecord = null;
+  clearStatus();
   document.getElementById("search-input").value = state.search[model];
   document.getElementById("page-size-select").value = String(state.pagination[model].page_size);
   state.caseComments = [];
@@ -787,6 +867,7 @@ function registerEvents() {
   });
 
   document.getElementById("back-to-list").addEventListener("click", async () => {
+    clearStatus();
     toggleView("list");
     updateHeader();
   });
@@ -810,8 +891,14 @@ function registerEvents() {
   });
 
   document.getElementById("cancel-edit").addEventListener("click", () => {
+    clearStatus();
     toggleView(state.selectedRecord ? "detail" : "list");
     updateHeader();
+  });
+
+  document.getElementById("toggle-audit-button").addEventListener("click", () => {
+    state.auditExpanded = !state.auditExpanded;
+    renderAuditRecords();
   });
 
   document.getElementById("delete-button").addEventListener("click", async () => {

@@ -95,6 +95,8 @@ Default seeded active user for login:
 
 - `user_name`: `alice`
 - `user_password`: `alice_password_123`
+- seed data now includes `10` users, `5` groups, `5` workflows, and `20` cases
+- seeded `case_data` includes nested JSON objects and arrays for UI and API testing
 - `alice` can view all seeded cases (admin + editor groups)
 - `bob` can only view part of seeded cases (editor group)
 - `charlie` can view zero seeded cases (viewer group, no matching stage access)
@@ -114,6 +116,9 @@ Default seeded active user for login:
 
 - JSON input fields such as workflow data and case data are validated in the browser before submission.
 - If JSON format is invalid, the UI shows an explicit error message instead of failing silently.
+- Detail pages render nested `case_data` as hierarchical key-value blocks instead of a raw JSON blob.
+- Audit records are collapsed by default and can be expanded on demand.
+- System messages appear near the page header and auto-dismiss instead of persisting across views.
 
 ## Structure
 
