@@ -88,6 +88,14 @@ Agents must follow the current repository structure:
 - `db/` for database initialization and seed scripts
 - `tests/` for automated verification
 
+Frontend module standards:
+
+- Keep `public/app.js` focused on orchestration (state flow and event wiring), not large rendering blocks.
+- Keep shared frontend helpers in `public/core/`.
+- Keep model-specific frontend config in `public/models/`.
+- Keep reusable view/render/edit logic in `public/components/`.
+- For new UI features, extend these module boundaries instead of adding large single-file logic.
+
 Do not introduce new top-level folders unless there is a clear need.
 
 --------------------------------------------------

@@ -157,6 +157,19 @@ Cross-platform script rules:
 - System messages appear near the page header and auto-dismiss instead of persisting across views.
 - Case update flow now handles "access lost after stage transition" explicitly and shows a clear message instead of leaving the user without context.
 
+## Frontend Modular Standards
+
+- Keep `public/app.js` as the orchestration layer only (state transitions, top-level event wiring, and flow coordination).
+- Keep shared helpers in `public/core/`:
+  - `constants.js` for shared constants
+  - `state.js` for initial state shape
+  - `utils.js` for pure formatting/parsing helpers
+  - `api.js` for request wrapper behavior
+  - `workflow.js` for workflow/stage helper logic
+- Keep per-model configuration and payload mapping in `public/models/` only.
+- Keep UI rendering/editing units in `public/components/` (list/detail/comments/audit/edit/case-data editor).
+- When adding new frontend behavior, prefer extending existing module boundaries instead of pushing logic back into `public/app.js`.
+
 ## Server Logging
 
 - `case` update requests log start/deny/success events with user and case IDs.
