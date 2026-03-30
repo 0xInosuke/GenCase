@@ -652,6 +652,10 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function isCompositeJsonValue(value) {
+  return isPlainObject(value) || Array.isArray(value);
+}
+
 function formatSimpleEditorValue(value) {
   if (value === null) {
     return "null";
@@ -679,15 +683,135 @@ function parseSimpleEditorValue(value) {
   }
 }
 
-function objectToRows(data) {
-  if (!isPlainObject(data)) {
-    return [];
+function cloneJsonValue(value) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_error) {
+    return {};
+  }
+}
+
+function normalizeCaseDataRoot(value) {
+  if (isCompositeJsonValue(value)) {
+    return value;
+  }
+  return {};
+}
+
+function formatJsonValueType(value) {
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  if (value === null) {
+    return "null";
+  }
+  return typeof value;
+}
+
+function setValueAtPath(target, path, nextValue) {
+  if (path.length === 0) {
+    return nextValue;
   }
 
-  return Object.entries(data).map(([key, value]) => ({
-    key,
-    value: formatSimpleEditorValue(value)
-  }));
+  let cursor = target;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    cursor = cursor[path[index]];
+  }
+  cursor[path[path.length - 1]] = nextValue;
+  return target;
+}
+
+function renderCaseDataFriendlyTree(container, rootValue, onLeafChange) {
+  container.innerHTML = "";
+
+  function renderNodeChildren(parent, value, path, level) {
+    if (isPlainObject(value)) {
+      const entries = Object.entries(value);
+      if (entries.length === 0) {
+        const emptyNote = document.createElement("p");
+        emptyNote.className = "readonly-note";
+        emptyNote.textContent = "Empty object";
+        parent.appendChild(emptyNote);
+        return;
+      }
+
+      entries.forEach(([key, childValue]) => {
+        renderEntry(parent, key, childValue, [...path, key], level);
+      });
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        const emptyNote = document.createElement("p");
+        emptyNote.className = "readonly-note";
+        emptyNote.textContent = "Empty array";
+        parent.appendChild(emptyNote);
+        return;
+      }
+
+      value.forEach((childValue, index) => {
+        renderEntry(parent, `[${index}]`, childValue, [...path, index], level);
+      });
+    }
+  }
+
+  function renderEntry(parent, keyLabel, value, path, level) {
+    if (isCompositeJsonValue(value)) {
+      const block = document.createElement("details");
+      block.className = "json-tree-block";
+      block.open = level < 2;
+      block.innerHTML = `
+        <summary>
+          <span class="json-tree-key">${escapeHtml(String(keyLabel))}</span>
+          <span class="json-tree-type">${escapeHtml(formatJsonValueType(value))}</span>
+        </summary>
+      `;
+
+      const content = document.createElement("div");
+      content.className = "json-tree-children";
+      block.appendChild(content);
+      renderNodeChildren(content, value, path, level + 1);
+      parent.appendChild(block);
+      return;
+    }
+
+    const row = document.createElement("div");
+    row.className = "json-tree-leaf";
+    row.innerHTML = `
+      <div class="json-tree-leaf-label">
+        <span class="json-tree-key">${escapeHtml(String(keyLabel))}</span>
+        <span class="json-tree-type">${escapeHtml(formatJsonValueType(value))}</span>
+      </div>
+      <input type="text" value="${escapeHtml(formatSimpleEditorValue(value))}">
+    `;
+
+    const valueInput = row.querySelector("input");
+    valueInput.addEventListener("input", () => {
+      onLeafChange(path, valueInput.value);
+    });
+
+    parent.appendChild(row);
+  }
+
+  if (!isCompositeJsonValue(rootValue)) {
+    const invalidRoot = document.createElement("p");
+    invalidRoot.className = "readonly-note";
+    invalidRoot.textContent = "Friendly mode supports object/array root values.";
+    container.appendChild(invalidRoot);
+    return;
+  }
+
+  const rootBlock = document.createElement("div");
+  rootBlock.className = "json-tree-root";
+  rootBlock.innerHTML = `
+    <p class="readonly-note">Root (${escapeHtml(formatJsonValueType(rootValue))})</p>
+  `;
+  const rootChildren = document.createElement("div");
+  rootChildren.className = "json-tree-children";
+  rootBlock.appendChild(rootChildren);
+  container.appendChild(rootBlock);
+  renderNodeChildren(rootChildren, rootValue, [], 0);
 }
 
 function initCaseDataEditor(form, initialValue) {
@@ -699,65 +823,24 @@ function initCaseDataEditor(form, initialValue) {
   const modeButtons = Array.from(editor.querySelectorAll("[data-json-mode]"));
   const simplePanel = editor.querySelector("[data-json-simple]");
   const rawPanel = editor.querySelector("[data-json-raw]");
-  const rowsContainer = editor.querySelector("[data-json-rows]");
-  const addRowButton = editor.querySelector("[data-json-add-row]");
+  const treeContainer = editor.querySelector("[data-json-tree]");
   const rawTextarea = editor.querySelector("[data-case-json-raw]");
   const hiddenField = editor.querySelector('textarea[name="case_data"]');
+  let friendlyValue = {};
 
-  function collectSimpleObject() {
-    const result = {};
-    const rows = rowsContainer.querySelectorAll("[data-json-row]");
-    for (const row of rows) {
-      const keyInput = row.querySelector("[data-json-key]");
-      const valueInput = row.querySelector("[data-json-value]");
-      const key = String(keyInput?.value || "").trim();
-      if (!key) {
-        continue;
-      }
-      result[key] = parseSimpleEditorValue(valueInput?.value || "");
-    }
-    return result;
-  }
-
-  function syncRawFromSimple() {
-    const objectValue = collectSimpleObject();
-    const jsonText = JSON.stringify(objectValue, null, 2);
-    rawTextarea.value = jsonText;
-    hiddenField.value = jsonText;
-  }
-
-  function addSimpleRow(key = "", value = "") {
-    const row = document.createElement("div");
-    row.className = "json-kv-row";
-    row.dataset.jsonRow = "1";
-    row.innerHTML = `
-      <input data-json-key type="text" placeholder="Key" value="${escapeHtml(key)}">
-      <input data-json-value type="text" placeholder="Value" value="${escapeHtml(value)}">
-      <button type="button" class="secondary compact" data-json-remove>Remove</button>
-    `;
-
-    rowsContainer.appendChild(row);
-
-    const keyInput = row.querySelector("[data-json-key]");
-    const valueInput = row.querySelector("[data-json-value]");
-    const removeButton = row.querySelector("[data-json-remove]");
-
-    keyInput.addEventListener("input", syncRawFromSimple);
-    valueInput.addEventListener("input", syncRawFromSimple);
-    removeButton.addEventListener("click", () => {
-      row.remove();
-      syncRawFromSimple();
+  function renderFriendly(value) {
+    friendlyValue = cloneJsonValue(value);
+    renderCaseDataFriendlyTree(treeContainer, friendlyValue, (path, rawInput) => {
+      const nextValue = parseSimpleEditorValue(rawInput);
+      friendlyValue = setValueAtPath(friendlyValue, path, nextValue);
+      syncRawFromFriendly();
     });
   }
 
-  function renderSimpleRowsFromObject(objectValue) {
-    rowsContainer.innerHTML = "";
-    const rows = objectToRows(objectValue);
-    if (rows.length === 0) {
-      addSimpleRow("", "");
-      return;
-    }
-    rows.forEach((row) => addSimpleRow(row.key, row.value));
+  function syncRawFromFriendly() {
+    const jsonText = JSON.stringify(friendlyValue, null, 2);
+    rawTextarea.value = jsonText;
+    hiddenField.value = jsonText;
   }
 
   function setMode(mode) {
@@ -774,7 +857,10 @@ function initCaseDataEditor(form, initialValue) {
 
     try {
       const parsed = parseJsonInput(rawTextarea.value || "{}", "Case Data");
-      renderSimpleRowsFromObject(parsed);
+      if (!isCompositeJsonValue(parsed)) {
+        throw new Error("Case Data must be a JSON object or array.");
+      }
+      renderFriendly(parsed);
       hiddenField.value = JSON.stringify(parsed, null, 2);
       return true;
     } catch (error) {
@@ -795,14 +881,9 @@ function initCaseDataEditor(form, initialValue) {
         setMode("simple");
         return;
       }
-      syncRawFromSimple();
+      syncRawFromFriendly();
       setMode("json");
     });
-  });
-
-  addRowButton.addEventListener("click", () => {
-    addSimpleRow("", "");
-    syncRawFromSimple();
   });
 
   rawTextarea.addEventListener("input", () => {
@@ -810,9 +891,9 @@ function initCaseDataEditor(form, initialValue) {
     syncSimpleFromRaw(false);
   });
 
-  const initialObject = isPlainObject(initialValue) ? initialValue : {};
-  renderSimpleRowsFromObject(initialObject);
-  const initialJson = JSON.stringify(initialObject, null, 2);
+  const initialRoot = normalizeCaseDataRoot(initialValue);
+  renderFriendly(initialRoot);
+  const initialJson = JSON.stringify(initialRoot, null, 2);
   rawTextarea.value = initialJson;
   hiddenField.value = initialJson;
   setMode("simple");
@@ -874,7 +955,7 @@ function buildInput(field, record) {
   }
 
   if (field.type === "case-data-editor") {
-    const caseData = isPlainObject(value) ? value : {};
+    const caseData = normalizeCaseDataRoot(value);
     const initialJson = JSON.stringify(caseData, null, 2);
     return `
       <div class="json-editor" data-case-json-editor>
@@ -883,9 +964,8 @@ function buildInput(field, record) {
           <button type="button" class="secondary compact" data-json-mode="json">JSON Editor</button>
         </div>
         <div class="json-editor-panel" data-json-simple>
-          <p class="readonly-note">Top-level keys are editable as key/value rows. Values can be plain text or valid JSON literals.</p>
-          <div class="json-kv-rows" data-json-rows></div>
-          <button type="button" class="secondary compact" data-json-add-row>Add Row</button>
+          <p class="readonly-note">Nested objects and arrays are shown level-by-level. Edit leaf values directly; changes sync to JSON editor.</p>
+          <div class="json-tree" data-json-tree></div>
         </div>
         <div class="json-editor-panel hidden" data-json-raw>
           <p class="readonly-note">Edit raw JSON directly.</p>

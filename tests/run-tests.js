@@ -536,7 +536,13 @@ async function main() {
           owner: "bob",
           metadata: {
             labels: ["prod", "network"],
-            score: 87
+            score: 87,
+            checklist: {
+              network: {
+                dns: "done",
+                firewall: "pending"
+              }
+            }
           },
           approved: true
         }
@@ -547,6 +553,8 @@ async function main() {
     assert.equal(updatedCaseData.body.case_data.severity, "critical");
     assert.deepEqual(updatedCaseData.body.case_data.metadata.labels, ["prod", "network"]);
     assert.equal(updatedCaseData.body.case_data.metadata.score, 87);
+    assert.equal(updatedCaseData.body.case_data.metadata.checklist.network.dns, "done");
+    assert.equal(updatedCaseData.body.case_data.metadata.checklist.network.firewall, "pending");
     assert.equal(updatedCaseData.body.case_data.approved, true);
 
     const caseAudit = await request(`/api/audits?target_type=case&target_id=${createdCaseId}`);
