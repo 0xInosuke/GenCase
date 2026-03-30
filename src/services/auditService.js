@@ -32,6 +32,29 @@ async function createEntries(entries, queryFn) {
   }
 }
 
+function buildCreateAuditEntries({
+  userId,
+  targetId,
+  targetType,
+  record,
+  statusField = "status_code",
+  statusChangeType = "STATUS_CHANGE",
+  dataFields = [],
+  protectedFields = []
+}) {
+  return buildUpdateAuditEntries({
+    userId,
+    targetId,
+    targetType,
+    previousRecord: {},
+    nextRecord: record,
+    statusField,
+    statusChangeType,
+    dataFields,
+    protectedFields
+  });
+}
+
 function buildUpdateAuditEntries({
   userId,
   targetId,
@@ -109,6 +132,7 @@ function buildCommentAuditEntry({ userId, caseId, commentId }) {
 }
 
 module.exports = {
+  buildCreateAuditEntries,
   buildCommentAuditEntry,
   buildUpdateAuditEntries,
   createEntries

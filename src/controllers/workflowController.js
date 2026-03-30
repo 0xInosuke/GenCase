@@ -2,7 +2,7 @@ const workflowModel = require("../models/workflowModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function fail(message) {
   const error = new Error(message);
@@ -149,7 +149,19 @@ module.exports = {
 
   async create(req, res, next) {
     try {
-      const created = await workflowModel.createWorkflow(parseWorkflowPayload(req.body));
+      const payload = parseWorkflowPayload(req.body);
+      const created = await withUserTransaction(async (queryFn) => {
+        const nextWorkflow = await workflowModel.createWorkflow(payload, queryFn);
+        const auditEntries = buildCreateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: nextWorkflow.id,
+          targetType: "workflow",
+          record: nextWorkflow,
+          dataFields: ["wf_name", "wf_data"]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextWorkflow;
+      });
       res.status(201).json(created);
     } catch (error) {
       next(error);

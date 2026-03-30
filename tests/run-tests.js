@@ -333,6 +333,15 @@ async function main() {
     assert.equal(workflowCreate.status, 201);
     const createdWorkflowId = workflowCreate.body.id;
 
+    const workflowAuditAfterCreate = await request(`/api/audits?target_type=workflow&target_id=${createdWorkflowId}`);
+    assert.equal(workflowAuditAfterCreate.status, 200);
+    assert.ok(
+      workflowAuditAfterCreate.body.some((item) =>
+        item.change_type === "STATUS_CHANGE" && item.old_value === "" && item.new_value === "ACT"
+      )
+    );
+    assert.ok(workflowAuditAfterCreate.body.some((item) => item.change_type === "DATA_CHANGE"));
+
     const caseCreate = await request("/api/cases", {
       method: "POST",
       body: JSON.stringify({
