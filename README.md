@@ -144,6 +144,10 @@ Cross-platform script rules:
 
 - JSON input fields such as workflow data and case data are validated in the browser before submission.
 - If JSON format is invalid, the UI shows an explicit error message instead of failing silently.
+- Case `case_data` editor now supports two synchronized modes:
+  - a friendly key/value input mode (default)
+  - a raw JSON editor mode
+- Editing in either mode updates the other mode when the JSON is valid, and saved payloads still use JSON format.
 - Detail pages render nested `case_data` as hierarchical key-value blocks instead of a raw JSON blob.
 - Audit records are collapsed by default and can be expanded on demand.
 - System messages appear near the page header and auto-dismiss instead of persisting across views.

@@ -533,13 +533,21 @@ async function main() {
         case_data: {
           title: "Infra Upgrade",
           severity: "critical",
-          owner: "bob"
+          owner: "bob",
+          metadata: {
+            labels: ["prod", "network"],
+            score: 87
+          },
+          approved: true
         }
       })
     });
     assert.equal(updatedCaseData.status, 200);
     assert.equal(updatedCaseData.body.case_title, "Infrastructure Rollout Updated");
     assert.equal(updatedCaseData.body.case_data.severity, "critical");
+    assert.deepEqual(updatedCaseData.body.case_data.metadata.labels, ["prod", "network"]);
+    assert.equal(updatedCaseData.body.case_data.metadata.score, 87);
+    assert.equal(updatedCaseData.body.case_data.approved, true);
 
     const caseAudit = await request(`/api/audits?target_type=case&target_id=${createdCaseId}`);
     assert.equal(caseAudit.status, 200);

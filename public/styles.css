@@ -377,6 +377,42 @@ tbody tr:hover {
   flex-wrap: wrap;
 }
 
+.json-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.json-editor-switch {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.json-editor-switch .compact.active {
+  background: #183d5a;
+  border-color: #183d5a;
+  color: #fff;
+}
+
+.json-editor-panel {
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.json-kv-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.json-kv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) auto;
+  gap: 8px;
+}
+
 .comments-section {
   margin-top: 18px;
   padding-top: 16px;

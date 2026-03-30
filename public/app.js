@@ -201,13 +201,13 @@ const modelConfigs = {
       { key: "workflow_id", label: "Workflow", type: "workflow-select" },
       { key: "case_title", label: "Case Title", type: "text" },
       { key: "stage_code", label: "Stage Code", type: "stage-select" },
-      { key: "case_data", label: "Case Data (JSON)", type: "json" }
+      { key: "case_data", label: "Case Data", type: "case-data-editor" }
     ],
     editFields: [
       { key: "workflow_id", label: "Workflow", type: "workflow-readonly" },
       { key: "case_title", label: "Case Title", type: "text" },
       { key: "stage_code", label: "Stage Code", type: "stage-select" },
-      { key: "case_data", label: "Case Data (JSON)", type: "json" }
+      { key: "case_data", label: "Case Data", type: "case-data-editor" }
     ],
     buildCreatePayload(formData) {
       return {
@@ -648,6 +648,176 @@ function renderAuditRecords() {
   `).join("");
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function formatSimpleEditorValue(value) {
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function parseSimpleEditorValue(value) {
+  const raw = String(value ?? "");
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    return "";
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (_error) {
+    return raw;
+  }
+}
+
+function objectToRows(data) {
+  if (!isPlainObject(data)) {
+    return [];
+  }
+
+  return Object.entries(data).map(([key, value]) => ({
+    key,
+    value: formatSimpleEditorValue(value)
+  }));
+}
+
+function initCaseDataEditor(form, initialValue) {
+  const editor = form.querySelector("[data-case-json-editor]");
+  if (!editor) {
+    return;
+  }
+
+  const modeButtons = Array.from(editor.querySelectorAll("[data-json-mode]"));
+  const simplePanel = editor.querySelector("[data-json-simple]");
+  const rawPanel = editor.querySelector("[data-json-raw]");
+  const rowsContainer = editor.querySelector("[data-json-rows]");
+  const addRowButton = editor.querySelector("[data-json-add-row]");
+  const rawTextarea = editor.querySelector("[data-case-json-raw]");
+  const hiddenField = editor.querySelector('textarea[name="case_data"]');
+
+  function collectSimpleObject() {
+    const result = {};
+    const rows = rowsContainer.querySelectorAll("[data-json-row]");
+    for (const row of rows) {
+      const keyInput = row.querySelector("[data-json-key]");
+      const valueInput = row.querySelector("[data-json-value]");
+      const key = String(keyInput?.value || "").trim();
+      if (!key) {
+        continue;
+      }
+      result[key] = parseSimpleEditorValue(valueInput?.value || "");
+    }
+    return result;
+  }
+
+  function syncRawFromSimple() {
+    const objectValue = collectSimpleObject();
+    const jsonText = JSON.stringify(objectValue, null, 2);
+    rawTextarea.value = jsonText;
+    hiddenField.value = jsonText;
+  }
+
+  function addSimpleRow(key = "", value = "") {
+    const row = document.createElement("div");
+    row.className = "json-kv-row";
+    row.dataset.jsonRow = "1";
+    row.innerHTML = `
+      <input data-json-key type="text" placeholder="Key" value="${escapeHtml(key)}">
+      <input data-json-value type="text" placeholder="Value" value="${escapeHtml(value)}">
+      <button type="button" class="secondary compact" data-json-remove>Remove</button>
+    `;
+
+    rowsContainer.appendChild(row);
+
+    const keyInput = row.querySelector("[data-json-key]");
+    const valueInput = row.querySelector("[data-json-value]");
+    const removeButton = row.querySelector("[data-json-remove]");
+
+    keyInput.addEventListener("input", syncRawFromSimple);
+    valueInput.addEventListener("input", syncRawFromSimple);
+    removeButton.addEventListener("click", () => {
+      row.remove();
+      syncRawFromSimple();
+    });
+  }
+
+  function renderSimpleRowsFromObject(objectValue) {
+    rowsContainer.innerHTML = "";
+    const rows = objectToRows(objectValue);
+    if (rows.length === 0) {
+      addSimpleRow("", "");
+      return;
+    }
+    rows.forEach((row) => addSimpleRow(row.key, row.value));
+  }
+
+  function setMode(mode) {
+    const showSimple = mode === "simple";
+    modeButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.jsonMode === mode);
+    });
+    simplePanel.classList.toggle("hidden", !showSimple);
+    rawPanel.classList.toggle("hidden", showSimple);
+  }
+
+  function syncSimpleFromRaw(showError) {
+    hiddenField.value = rawTextarea.value;
+
+    try {
+      const parsed = parseJsonInput(rawTextarea.value || "{}", "Case Data");
+      renderSimpleRowsFromObject(parsed);
+      hiddenField.value = JSON.stringify(parsed, null, 2);
+      return true;
+    } catch (error) {
+      if (showError) {
+        setStatus(error.message, true);
+      }
+      return false;
+    }
+  }
+
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const mode = button.dataset.jsonMode;
+      if (mode === "simple") {
+        if (!syncSimpleFromRaw(true)) {
+          return;
+        }
+        setMode("simple");
+        return;
+      }
+      syncRawFromSimple();
+      setMode("json");
+    });
+  });
+
+  addRowButton.addEventListener("click", () => {
+    addSimpleRow("", "");
+    syncRawFromSimple();
+  });
+
+  rawTextarea.addEventListener("input", () => {
+    hiddenField.value = rawTextarea.value;
+    syncSimpleFromRaw(false);
+  });
+
+  const initialObject = isPlainObject(initialValue) ? initialValue : {};
+  renderSimpleRowsFromObject(initialObject);
+  const initialJson = JSON.stringify(initialObject, null, 2);
+  rawTextarea.value = initialJson;
+  hiddenField.value = initialJson;
+  setMode("simple");
+}
+
 function buildInput(field, record) {
   const value = record?.[field.key] ?? "";
 
@@ -700,6 +870,29 @@ function buildInput(field, record) {
       <select name="${field.key}" required>
         ${stages.map((stage) => `<option value="${escapeHtml(stage)}" ${stage === String(value) ? "selected" : ""}>${escapeHtml(stage)}</option>`).join("")}
       </select>
+    `;
+  }
+
+  if (field.type === "case-data-editor") {
+    const caseData = isPlainObject(value) ? value : {};
+    const initialJson = JSON.stringify(caseData, null, 2);
+    return `
+      <div class="json-editor" data-case-json-editor>
+        <div class="json-editor-switch">
+          <button type="button" class="secondary compact active" data-json-mode="simple">Friendly Inputs</button>
+          <button type="button" class="secondary compact" data-json-mode="json">JSON Editor</button>
+        </div>
+        <div class="json-editor-panel" data-json-simple>
+          <p class="readonly-note">Top-level keys are editable as key/value rows. Values can be plain text or valid JSON literals.</p>
+          <div class="json-kv-rows" data-json-rows></div>
+          <button type="button" class="secondary compact" data-json-add-row>Add Row</button>
+        </div>
+        <div class="json-editor-panel hidden" data-json-raw>
+          <p class="readonly-note">Edit raw JSON directly.</p>
+          <textarea data-case-json-raw rows="14"></textarea>
+        </div>
+        <textarea name="${field.key}" class="hidden">${escapeHtml(initialJson)}</textarea>
+      </div>
     `;
   }
 
@@ -805,6 +998,10 @@ function renderEditForm(mode) {
       setStatus(error.message, true);
     }
   };
+
+  if (state.activeModel === "cases") {
+    initCaseDataEditor(form, isCreate ? null : state.selectedRecord?.case_data);
+  }
 
   document.getElementById("cancel-form").addEventListener("click", () => {
     if (isCreate) {
