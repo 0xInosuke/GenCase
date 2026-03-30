@@ -49,13 +49,20 @@ Key requirements:
 
 If database changes are required:
 
-- Update `db/init_db.ps1`
-- Update `db/init_testdata.ps1`
+- Update canonical SQL files first:
+  - `db/sql/init_db_schema.sql`
+  - `db/sql/init_testdata.sql`
+- Keep all runners synchronized:
+  - `db/init_db.ps1`
+  - `db/init_testdata.ps1`
+  - `db/init_db.sh`
+  - `db/init_testdata.sh`
 - Update any affected list/detail views and APIs
 - Update tests and documentation
 - Update audit generation if the changed model or feature should be auditable
 
 `db/init_db.ps1` must always be able to rebuild the full local project database from scratch.
+`db/init_db.sh` must provide equivalent behavior on Linux/macOS.
 
 --------------------------------------------------
 

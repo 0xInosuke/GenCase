@@ -1,5 +1,6 @@
 param(
-    [string]$EnvPath = ".env"
+    [string]$EnvPath = ".env",
+    [string]$SchemaSqlPath = "db/sql/init_db_schema.sql"
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,23 +23,62 @@ function Get-EnvMap {
     return $values
 }
 
+function Resolve-PsqlPath {
+    if ($env:PSQL_BIN -and -not [string]::IsNullOrWhiteSpace($env:PSQL_BIN)) {
+        return $env:PSQL_BIN
+    }
+
+    $fromPath = Get-Command psql -ErrorAction SilentlyContinue
+    if ($fromPath) {
+        return $fromPath.Source
+    }
+
+    $windowsDefault = "C:\Program Files\PostgreSQL\18\bin\psql.exe"
+    if (Test-Path $windowsDefault) {
+        return $windowsDefault
+    }
+
+    throw "psql not found. Set PSQL_BIN or add psql to PATH."
+}
+
 function Invoke-Psql {
     param(
+        [string]$PsqlPath,
         [hashtable]$Config,
         [string]$Database,
         [string]$UserName,
         [string]$Password,
-        [string]$Sql
+        [string]$Sql,
+        [string]$SqlFile,
+        [hashtable]$Variables
     )
 
+    if ([string]::IsNullOrWhiteSpace($Sql) -and [string]::IsNullOrWhiteSpace($SqlFile)) {
+        throw "Either Sql or SqlFile must be provided."
+    }
+
     $env:PGPASSWORD = $Password
-    & "C:\Program Files\PostgreSQL\18\bin\psql.exe" `
-        -v "ON_ERROR_STOP=1" `
-        -h $Config["DB_HOST"] `
-        -p $Config["DB_PORT"] `
-        -U $UserName `
-        -d $Database `
-        -c $Sql
+    $args = @(
+        "-v", "ON_ERROR_STOP=1",
+        "-h", $Config["DB_HOST"],
+        "-p", $Config["DB_PORT"],
+        "-U", $UserName,
+        "-d", $Database
+    )
+
+    if ($Variables) {
+        foreach ($entry in $Variables.GetEnumerator()) {
+            $args += @("-v", "$($entry.Key)=$($entry.Value)")
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Sql)) {
+        $args += @("-c", $Sql)
+    } else {
+        $args += @("-f", $SqlFile)
+    }
+
+    & $PsqlPath @args
 
     if ($LASTEXITCODE -ne 0) {
         throw "psql command failed."
@@ -52,6 +92,7 @@ function Quote-Literal {
 }
 
 $config = Get-EnvMap -Path $EnvPath
+$psqlPath = Resolve-PsqlPath
 
 $dbName = $config["DB_NAME"]
 $bootstrapDb = $config["DB_BOOTSTRAP_NAME"]
@@ -65,6 +106,10 @@ $appPassword = $config["DB_APP_PASSWORD"]
 $adminPasswordSql = Quote-Literal $adminPassword
 $appPasswordSql = Quote-Literal $appPassword
 
+if (-not (Test-Path $SchemaSqlPath)) {
+    throw "Schema SQL file not found: $SchemaSqlPath"
+}
+
 Write-Host "Resetting database '$dbName' and recreating roles..."
 
 # Terminate active sessions so DROP DATABASE can succeed consistently.
@@ -74,168 +119,27 @@ FROM pg_stat_activity
 WHERE datname = '$dbName' AND pid <> pg_backend_pid();
 "@
 
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql $terminateSql
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "DROP DATABASE IF EXISTS $dbName;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "DROP ROLE IF EXISTS $appUser;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "DROP ROLE IF EXISTS $adminUser;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "CREATE ROLE $adminUser LOGIN PASSWORD $adminPasswordSql;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "CREATE ROLE $appUser LOGIN PASSWORD $appPasswordSql;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "CREATE DATABASE $dbName OWNER $adminUser;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "REVOKE ALL ON DATABASE $dbName FROM PUBLIC;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "GRANT CONNECT, TEMPORARY ON DATABASE $dbName TO $adminUser;"
-Invoke-Psql -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "GRANT CONNECT ON DATABASE $dbName TO $appUser;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql $terminateSql
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "DROP DATABASE IF EXISTS $dbName;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "DROP ROLE IF EXISTS $appUser;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "DROP ROLE IF EXISTS $adminUser;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "CREATE ROLE $adminUser LOGIN PASSWORD $adminPasswordSql;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "CREATE ROLE $appUser LOGIN PASSWORD $appPasswordSql;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "CREATE DATABASE $dbName OWNER $adminUser;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "REVOKE ALL ON DATABASE $dbName FROM PUBLIC;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "GRANT CONNECT, TEMPORARY ON DATABASE $dbName TO $adminUser;"
+Invoke-Psql -PsqlPath $psqlPath -Config $config -Database $bootstrapDb -UserName $bootstrapUser -Password $bootstrapPassword -Sql "GRANT CONNECT ON DATABASE $dbName TO $appUser;"
 
-$schemaSql = @"
-ALTER SCHEMA public OWNER TO $adminUser;
-
-REVOKE ALL ON SCHEMA public FROM PUBLIC;
-GRANT USAGE, CREATE ON SCHEMA public TO $adminUser;
-GRANT USAGE ON SCHEMA public TO $appUser;
-"@
-
-Invoke-Psql -Config $config -Database $dbName -UserName $bootstrapUser -Password $bootstrapPassword -Sql $schemaSql
-
-# Create all business tables and views as the admin role so ownership stays aligned.
-$tableSql = @"
-CREATE TABLE tb_user (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    user_name VARCHAR(100) NOT NULL,
-    display_name VARCHAR(150) NOT NULL,
-    user_password VARCHAR(255) NOT NULL,
-    status_code VARCHAR(10) NOT NULL DEFAULT 'ACT',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_tb_user_user_name UNIQUE (user_name),
-    CONSTRAINT ck_tb_user_status_code CHECK (status_code IN ('ACT', 'INACT', 'DEL', 'PEND'))
-);
-
-CREATE TABLE tb_group (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    group_name VARCHAR(100) NOT NULL,
-    status_code VARCHAR(10) NOT NULL DEFAULT 'ACT',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_tb_group_group_name UNIQUE (group_name),
-    CONSTRAINT ck_tb_group_status_code CHECK (status_code IN ('ACT', 'INACT', 'DEL', 'PEND'))
-);
-
-CREATE TABLE tb_user_group (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    group_id BIGINT NOT NULL,
-    status_code VARCHAR(10) NOT NULL DEFAULT 'ACT',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_tb_user_group_user_id FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE,
-    CONSTRAINT fk_tb_user_group_group_id FOREIGN KEY (group_id) REFERENCES tb_group(id) ON DELETE CASCADE,
-    CONSTRAINT uq_tb_user_group_user_id_group_id UNIQUE (user_id, group_id),
-    CONSTRAINT ck_tb_user_group_status_code CHECK (status_code IN ('ACT', 'INACT', 'DEL', 'PEND'))
-);
-
-CREATE TABLE tb_workflow (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    wf_name VARCHAR(120) NOT NULL,
-    status_code VARCHAR(10) NOT NULL DEFAULT 'ACT',
-    wf_data JSONB NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_tb_workflow_wf_name UNIQUE (wf_name),
-    CONSTRAINT ck_tb_workflow_status_code CHECK (status_code IN ('ACT', 'INACT', 'DEL', 'PEND')),
-    CONSTRAINT ck_tb_workflow_wf_data_object CHECK (jsonb_typeof(wf_data) = 'object')
-);
-
-CREATE TABLE tb_case (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    workflow_id BIGINT NOT NULL,
-    case_title VARCHAR(200) NOT NULL,
-    case_data JSONB NOT NULL,
-    stage_code VARCHAR(120) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_tb_case_workflow_id FOREIGN KEY (workflow_id) REFERENCES tb_workflow(id),
-    CONSTRAINT ck_tb_case_case_data_object CHECK (jsonb_typeof(case_data) = 'object')
-);
-
-CREATE TABLE tb_comments (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    case_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    content TEXT NOT NULL,
-    created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    status_code VARCHAR(10) NOT NULL DEFAULT 'ACT',
-    CONSTRAINT fk_tb_comments_case_id FOREIGN KEY (case_id) REFERENCES tb_case(id) ON DELETE CASCADE,
-    CONSTRAINT fk_tb_comments_user_id FOREIGN KEY (user_id) REFERENCES tb_user(id),
-    CONSTRAINT ck_tb_comments_status_code CHECK (status_code IN ('ACT', 'INACT', 'DEL', 'PEND'))
-);
-
-CREATE TABLE tb_audit (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    user_id VARCHAR(120) NOT NULL,
-    target_id BIGINT NOT NULL,
-    target_type VARCHAR(50) NOT NULL,
-    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    change_type VARCHAR(50) NOT NULL,
-    old_value TEXT NOT NULL,
-    new_value TEXT NOT NULL,
-    CONSTRAINT ck_tb_audit_target_type CHECK (target_type IN ('user', 'group', 'user_group', 'workflow', 'case'))
-);
-
-CREATE INDEX idx_tb_user_status_code ON tb_user (status_code);
-CREATE INDEX idx_tb_group_status_code ON tb_group (status_code);
-CREATE INDEX idx_tb_user_group_user_id ON tb_user_group (user_id);
-CREATE INDEX idx_tb_user_group_group_id ON tb_user_group (group_id);
-CREATE INDEX idx_tb_user_group_status_code ON tb_user_group (status_code);
-CREATE INDEX idx_tb_workflow_wf_name ON tb_workflow (wf_name);
-CREATE INDEX idx_tb_workflow_status_code ON tb_workflow (status_code);
-CREATE INDEX idx_tb_workflow_wf_data ON tb_workflow USING GIN (wf_data);
-CREATE INDEX idx_tb_case_workflow_id ON tb_case (workflow_id);
-CREATE INDEX idx_tb_case_case_title ON tb_case (case_title);
-CREATE INDEX idx_tb_case_stage_code ON tb_case (stage_code);
-CREATE INDEX idx_tb_case_case_data ON tb_case USING GIN (case_data);
-CREATE INDEX idx_tb_comments_case_id ON tb_comments (case_id);
-CREATE INDEX idx_tb_comments_user_id ON tb_comments (user_id);
-CREATE INDEX idx_tb_comments_created_time ON tb_comments (created_time);
-CREATE INDEX idx_tb_audit_target ON tb_audit (target_type, target_id);
-CREATE INDEX idx_tb_audit_timestamp ON tb_audit (timestamp DESC);
-
-CREATE VIEW v_user_group_detail AS
-SELECT
-    ug.id,
-    ug.user_id,
-    u.user_name,
-    u.display_name,
-    ug.group_id,
-    g.group_name,
-    ug.status_code,
-    ug.created_at,
-    ug.updated_at
-FROM tb_user_group ug
-INNER JOIN tb_user u ON u.id = ug.user_id
-INNER JOIN tb_group g ON g.id = ug.group_id;
-
-CREATE VIEW v_case_detail AS
-SELECT
-    c.id,
-    c.workflow_id,
-    w.wf_name,
-    c.case_title,
-    c.stage_code,
-    c.case_data,
-    c.created_at,
-    c.updated_at
-FROM tb_case c
-INNER JOIN tb_workflow w ON w.id = c.workflow_id;
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $appUser;
-GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO $appUser;
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO $appUser;
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO $appUser;
-"@
-
-Invoke-Psql -Config $config -Database $dbName -UserName $adminUser -Password $adminPassword -Sql $tableSql
+Invoke-Psql `
+    -PsqlPath $psqlPath `
+    -Config $config `
+    -Database $dbName `
+    -UserName $adminUser `
+    -Password $adminPassword `
+    -SqlFile $SchemaSqlPath `
+    -Variables @{
+        admin_user = $adminUser
+        app_user = $appUser
+    }
 
 Write-Host "Database '$dbName' is ready."

@@ -87,6 +87,13 @@ powershell -ExecutionPolicy Bypass -File .\db\init_db.ps1
 powershell -ExecutionPolicy Bypass -File .\db\init_testdata.ps1
 ```
 
+Linux (Debian) equivalent:
+
+```bash
+bash ./db/init_db.sh
+bash ./db/init_testdata.sh
+```
+
 4. Install dependencies:
 
 ```powershell
@@ -114,14 +121,24 @@ Default seeded active user for login:
 
 ## Scripts
 
-- [db/init_db.ps1](./db/init_db.ps1): resets the database, recreates roles, and rebuilds schema
-- [db/init_testdata.ps1](./db/init_testdata.ps1): inserts deterministic seed data
+- [db/sql/init_db_schema.sql](./db/sql/init_db_schema.sql): canonical schema SQL used by all environments
+- [db/sql/init_testdata.sql](./db/sql/init_testdata.sql): canonical deterministic seed SQL used by all environments
+- [db/init_db.ps1](./db/init_db.ps1): Windows/PowerShell database reset runner
+- [db/init_testdata.ps1](./db/init_testdata.ps1): Windows/PowerShell seed runner
+- [db/init_db.sh](./db/init_db.sh): Linux/macOS Bash database reset runner
+- [db/init_testdata.sh](./db/init_testdata.sh): Linux/macOS Bash seed runner
 - [db/workflow_sample.json](./db/workflow_sample.json): sample `wf_data` JSON for workflow records
 - [API.md](./API.md): external case API usage
 - [scripts/api_test1.ps1](./scripts/api_test1.ps1): example external API create script
 - [scripts/api_test2.ps1](./scripts/api_test2.ps1): example external API list and update script
 - `npm.cmd start`: starts the web server
 - `npm.cmd test`: runs integration tests against the local database
+
+Cross-platform script rules:
+
+- Schema and seed SQL must be updated in `db/sql/*.sql` first.
+- Keep both PowerShell and Bash runners aligned with those SQL files.
+- If database logic changes, update all four runners: `init_db.ps1`, `init_testdata.ps1`, `init_db.sh`, `init_testdata.sh`.
 
 ## Frontend Validation
 
