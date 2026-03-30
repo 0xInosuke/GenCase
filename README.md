@@ -177,6 +177,9 @@ Cross-platform script rules:
 
 ## Server Logging
 
+- `npm.cmd start` now writes request/activity logs to the console in an Apache-style line format.
+- Request and activity logs are persisted to `logs/access.log`.
+- Error logs with stack/message details are persisted to `logs/error.log`.
 - `case` update requests log start/deny/success events with user and case IDs.
 - Global API error middleware logs request method, path, actor identity, status code, and stack/message for faster debugging.
 

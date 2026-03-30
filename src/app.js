@@ -4,11 +4,24 @@ const apiRoutes = require("./routes");
 const authRoutes = require("./routes/authRoutes");
 const externalCaseRoutes = require("./routes/externalCaseRoutes");
 const { requireApiAuth, requirePageAuth, getRequestSession, requireExternalApiKey } = require("./middleware/auth");
+const { logAccess, logError } = require("./utils/logger");
 
 const app = express();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public"), { index: false }));
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+
+  res.on("finish", () => {
+    logAccess(req, {
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt
+    });
+  });
+
+  next();
+});
 
 app.get("/login", (req, res) => {
   const { session } = getRequestSession(req);
@@ -50,9 +63,8 @@ app.use((err, req, res, _next) => {
     message = "One or more values use an invalid format.";
   }
 
-  const actor = req.sessionUser?.user_name || req.apiClient?.api_key_name || "anonymous";
   const details = err.stack || err.message || String(err);
-  console.error(`[api.error] method=${req.method} path=${req.originalUrl} actor=${actor} status=${statusCode}\n${details}`);
+  logError(req, { statusCode, details });
 
   res.status(statusCode).json({
     error: message
