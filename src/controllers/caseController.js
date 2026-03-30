@@ -1,5 +1,6 @@
 const caseModel = require("../models/caseModel");
 const workflowModel = require("../models/workflowModel");
+const commentModel = require("../models/commentModel");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
 const { buildCreateAuditEntries, buildDeleteAuditEntry, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
@@ -175,6 +176,32 @@ module.exports = {
         return nextCase;
       });
       res.status(201).json(created);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async export(req, res, next) {
+    try {
+      const caseId = Number(req.params.id);
+      const item = await caseModel.getCaseByIdForUser(caseId, req.sessionUser.user_id);
+      if (!item) {
+        return res.status(403).json({ error: "You do not have access to this case." });
+      }
+
+      const comments = await commentModel.listByCaseId(caseId);
+      res.json({
+        exported_at: new Date().toISOString(),
+        case: item,
+        comments: comments.map((comment) => ({
+          id: comment.id,
+          user_id: comment.user_id,
+          author: comment.display_name,
+          created_time: comment.created_time,
+          content: comment.content,
+          status_code: comment.status_code
+        }))
+      });
     } catch (error) {
       next(error);
     }

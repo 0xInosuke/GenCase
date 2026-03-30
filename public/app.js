@@ -7,6 +7,7 @@ import {
   getDetailItemClass,
   formatDateTime
 } from "./core/utils.js";
+import { downloadCaseExportJson, downloadCaseExportMarkdown } from "./core/export.js";
 import { createInitialState } from "./core/state.js";
 import { apiRequest } from "./core/api.js";
 import { createModelConfigs } from "./models/index.js";
@@ -58,11 +59,14 @@ function toggleView(view) {
 
 function updateHeader() {
   const config = getConfig();
+  const isCaseDetail = state.activeModel === "cases" && state.view === "detail" && state.selectedRecord;
   document.getElementById("view-title").textContent = config.label;
   document.getElementById("view-label").textContent = state.view === "list" ? "List View" : state.view === "detail" ? "Detail View" : "Edit View";
   document.getElementById("search-input").placeholder = state.activeModel === "cases"
     ? 'Search text or JSON, for example {"owner":"alice"}'
     : "Search records";
+  document.getElementById("export-json-button").classList.toggle("hidden", !isCaseDetail);
+  document.getElementById("export-markdown-button").classList.toggle("hidden", !isCaseDetail);
   document.querySelectorAll("#model-nav button").forEach((button) => {
     button.classList.toggle("active", button.dataset.model === state.activeModel);
   });
@@ -347,6 +351,34 @@ function registerEvents() {
       toggleView("list");
       await refreshCurrentModel();
       setStatus(`${config.label.slice(0, -1) || config.label} deleted.`);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  document.getElementById("export-json-button").addEventListener("click", async () => {
+    if (state.activeModel !== "cases" || !state.selectedRecord) {
+      return;
+    }
+
+    try {
+      const caseExport = await apiRequest(`/api/cases/${state.selectedRecord.id}/export`);
+      downloadCaseExportJson(caseExport);
+      setStatus("Case exported as JSON.");
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  document.getElementById("export-markdown-button").addEventListener("click", async () => {
+    if (state.activeModel !== "cases" || !state.selectedRecord) {
+      return;
+    }
+
+    try {
+      const caseExport = await apiRequest(`/api/cases/${state.selectedRecord.id}/export`);
+      downloadCaseExportMarkdown(caseExport);
+      setStatus("Case exported as Markdown.");
     } catch (error) {
       setStatus(error.message, true);
     }

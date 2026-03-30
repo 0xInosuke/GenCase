@@ -44,6 +44,7 @@ Case visibility rules:
 - Case list view, case detail view, and case search all include `case_title`.
 - Case list search supports both plain text search and JSON condition search against `case_data`.
 - JSON condition search uses a JSON object such as `{"owner":"alice","severity":"high"}` and still only returns cases visible to the current user.
+- Case detail view supports one-click export to `.json` or `.md`, including case fields, `case_data`, and all visible comments with author, timestamp, and content.
 
 Detailed case permission logic:
 
@@ -154,6 +155,7 @@ Cross-platform script rules:
 - Friendly mode supports adding/removing object fields and array items at any nested level.
 - Editing in either mode updates the other mode when the JSON is valid, and saved payloads still use JSON format.
 - Detail pages render nested `case_data` as hierarchical key-value blocks instead of a raw JSON blob.
+- Case detail export downloads can be saved as JSON for system reuse or Markdown for human-readable handoff.
 - Frontend code is organized as ES modules so model-specific view logic can be maintained independently.
 - Audit records are collapsed by default and can be expanded on demand.
 - System messages appear near the page header and auto-dismiss instead of persisting across views.

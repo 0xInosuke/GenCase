@@ -169,6 +169,14 @@ async function main() {
     assert.ok(aliceReferenceComments.body.length >= 1);
     assert.ok(aliceReferenceComments.body.some((item) => item.display_name === "Alice Chen"));
 
+    const aliceCaseExport = await request(`/api/cases/${referenceCaseId}/export`);
+    assert.equal(aliceCaseExport.status, 200);
+    assert.equal(Number(aliceCaseExport.body.case.id), referenceCaseId);
+    assert.ok(Array.isArray(aliceCaseExport.body.comments));
+    assert.ok(aliceCaseExport.body.comments.length >= 1);
+    assert.ok(aliceCaseExport.body.comments.some((item) => item.author === "Alice Chen"));
+    assert.ok(typeof aliceCaseExport.body.exported_at === "string");
+
     const invalidExternalAuth = await requestExternal("/external-api/cases", { apiKey: "invalid-key" });
     assert.equal(invalidExternalAuth.status, 401);
 
@@ -252,6 +260,9 @@ async function main() {
 
     const bobForbiddenAudit = await request(`/api/audits?target_type=case&target_id=${bobForbiddenCaseId}`);
     assert.equal(bobForbiddenAudit.status, 403);
+
+    const bobForbiddenExport = await request(`/api/cases/${bobForbiddenCaseId}/export`);
+    assert.equal(bobForbiddenExport.status, 403);
 
     const logoutBob = await logoutCurrent();
     assert.equal(logoutBob.status, 204);
