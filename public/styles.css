@@ -178,6 +178,10 @@ button.compact {
 }
 
 .page-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 12px 16px;
   border: 1px solid var(--border-strong);
   background: #edf6fd;
@@ -187,10 +191,19 @@ button.compact {
   box-shadow: var(--shadow);
 }
 
+.page-toast.hidden {
+  display: none;
+}
+
 .page-toast.is-error {
   border-color: rgba(180, 35, 24, 0.3);
   background: #fdf0ee;
   color: var(--danger);
+}
+
+.page-toast-close {
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .toolbar {

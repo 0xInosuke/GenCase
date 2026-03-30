@@ -21,7 +21,7 @@ const state = createInitialState();
 
 function setStatus(message, isError = false) {
   const el = document.getElementById("page-toast");
-  el.textContent = message;
+  document.getElementById("page-toast-message").textContent = message;
   el.classList.remove("hidden");
   el.classList.toggle("is-error", isError);
 
@@ -31,12 +31,12 @@ function setStatus(message, isError = false) {
 
   state.toastTimer = window.setTimeout(() => {
     clearStatus();
-  }, 2400);
+  }, isError ? 12000 : 8000);
 }
 
 function clearStatus() {
   const el = document.getElementById("page-toast");
-  el.textContent = "";
+  document.getElementById("page-toast-message").textContent = "";
   el.classList.add("hidden");
   el.classList.remove("is-error");
 
@@ -303,6 +303,10 @@ function registerEvents() {
     clearStatus();
     toggleView("list");
     updateHeader();
+  });
+
+  document.getElementById("page-toast-close").addEventListener("click", () => {
+    clearStatus();
   });
 
   document.getElementById("create-button").addEventListener("click", async () => {
