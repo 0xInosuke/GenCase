@@ -170,7 +170,7 @@ Cross-platform script rules:
 - [src/models](./src/models): database access layer
 - [src/routes](./src/routes): API routes
 - [public/app.js](./public/app.js): frontend entry/orchestration module
-- [public/core](./public/core): shared frontend constants, state, and utility functions
+- [public/core](./public/core): shared frontend constants, state, utility functions, API and workflow helpers
 - [public/models](./public/models): per-model frontend config modules (users, groups, user-groups, workflows, cases)
-- [public/components](./public/components): reusable frontend components (including case_data editor)
+- [public/components](./public/components): reusable frontend render/edit components (list/detail/comments/audit/case_data editor)
 - [tests/run-tests.js](./tests/run-tests.js): integration smoke tests

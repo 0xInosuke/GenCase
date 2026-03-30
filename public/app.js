@@ -9,8 +9,13 @@ import {
   formatDateTime
 } from "./core/utils.js";
 import { createInitialState } from "./core/state.js";
+import { apiRequest } from "./core/api.js";
+import { getCaseStagesByWorkflowId } from "./core/workflow.js";
 import { createModelConfigs } from "./models/index.js";
 import { initCaseDataEditor, normalizeCaseDataRoot } from "./components/caseDataEditor.js";
+import { renderList as renderListView, renderPagination as renderPaginationView } from "./components/listView.js";
+import { renderDetail as renderDetailView } from "./components/detailView.js";
+import { renderCaseComments as renderCaseCommentsView, renderAuditRecords as renderAuditRecordsView } from "./components/commentsAuditView.js";
 
 const modelConfigs = createModelConfigs(parseJsonInput);
 const state = createInitialState();
@@ -40,35 +45,6 @@ function clearStatus() {
     window.clearTimeout(state.toastTimer);
     state.toastTimer = null;
   }
-}
-
-async function apiRequest(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options
-  });
-
-  if (response.status === 401) {
-    window.location.href = "/login";
-    throw new Error("Authentication required.");
-  }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json")
-    ? await response.json()
-    : { error: await response.text() };
-
-  if (!response.ok) {
-    const error = new Error(data.error || "Request failed.");
-    error.status = response.status;
-    throw error;
-  }
-
-  return data;
 }
 
 function getConfig(model = state.activeModel) {
@@ -131,203 +107,64 @@ async function loadReferences() {
   state.referenceData.workflows = workflowsResult.items;
 }
 
-function getWorkflowById(workflowId) {
-  return state.referenceData.workflows.find((item) => Number(item.id) === Number(workflowId)) || null;
-}
-
-function getCaseStagesByWorkflowId(workflowId) {
-  const workflow = getWorkflowById(workflowId);
-  const stages = workflow?.wf_data?.stages;
-  if (!Array.isArray(stages)) {
-    return [];
-  }
-  return stages.map((stage) => String(stage).trim()).filter(Boolean);
-}
-
-function renderList() {
-  const config = getConfig();
-  const target = document.getElementById("list-table");
-  const rows = state.records[state.activeModel];
-
-  if (rows.length === 0) {
-    target.innerHTML = "<p>No records found.</p>";
-    return;
-  }
-
-  const headers = config.listColumns.map((column) => {
-    if (!column.sortable) {
-      return `<th>${column.label}</th>`;
-    }
-
-    const currentSort = state.sort[state.activeModel];
-    const directionMarker = currentSort.sortBy === column.key ? (currentSort.sortDir === "asc" ? " [asc]" : " [desc]") : "";
-    return `<th><button type="button" data-sort="${column.key}">${column.label}${directionMarker}</button></th>`;
-  }).join("");
-
-  const body = rows.map((row) => `
-    <tr data-row-id="${row.id}">
-      ${config.listColumns.map((column) => `<td>${escapeHtml(formatInlineValue(row[column.key]))}</td>`).join("")}
-    </tr>
-  `).join("");
-  const colgroup = config.listColumns
-    .map((column) => `<col style="width:${column.width || "auto"}">`)
-    .join("");
-
-  target.innerHTML = `
-    <table>
-      <colgroup>${colgroup}</colgroup>
-      <thead><tr>${headers}</tr></thead>
-      <tbody>${body}</tbody>
-    </table>
-  `;
-
-  target.querySelectorAll("[data-sort]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const modelSort = state.sort[state.activeModel];
-      const sortBy = button.dataset.sort;
-      modelSort.sortDir = modelSort.sortBy === sortBy && modelSort.sortDir === "asc" ? "desc" : "asc";
-      modelSort.sortBy = sortBy;
-      state.pagination[state.activeModel].page = 1;
-      await refreshCurrentModel();
-    });
-  });
-
-  target.querySelectorAll("[data-row-id]").forEach((rowEl) => {
-    rowEl.addEventListener("click", async () => {
-      await openDetail(Number(rowEl.dataset.rowId));
-    });
-  });
-}
-
-function renderPagination() {
-  const pagination = state.pagination[state.activeModel];
-  document.getElementById("page-indicator").textContent = pagination.total_pages === 0
-    ? "No pages"
-    : `Page ${pagination.page} / ${pagination.total_pages} (${pagination.total_count} records)`;
-  document.getElementById("prev-page").disabled = pagination.page <= 1;
-  document.getElementById("next-page").disabled = pagination.total_pages === 0 || pagination.page >= pagination.total_pages;
-}
-
-function renderDetail() {
-  const config = getConfig();
-  const target = document.getElementById("detail-content");
-  document.getElementById("detail-title").textContent = `${config.label} Detail`;
-
-  target.innerHTML = config.detailFields.map((field) => {
-    const rawValue = state.selectedRecord?.[field.key];
-    const formattedValue = field.key.endsWith("_at") || field.key === "timestamp"
-      ? formatDateTime(rawValue)
-      : formatDetailValue(rawValue);
-    const nestedValue = state.activeModel === "cases" && field.key === "case_data"
-      ? renderNestedBlocks(rawValue)
-      : "";
-    const isNestedCaseData = Boolean(nestedValue);
-    const valueClass = isMultilineValue(rawValue, field) ? "detail-value detail-value--multiline" : "detail-value";
-    const valueTag = isMultilineValue(rawValue, field) ? "pre" : "div";
-
-    return `
-      <div class="${getDetailItemClass(field)}">
-        <p>${field.label}</p>
-        ${isNestedCaseData ? nestedValue : `<${valueTag} class="${valueClass}">${escapeHtml(formattedValue)}</${valueTag}>`}
-      </div>
-    `;
-  }).join("");
-}
-
-function renderNestedBlocks(value, path = []) {
-  if (!value || typeof value !== "object") {
-    return `<div class="detail-nested-block"><p>${escapeHtml(path[path.length - 1] || "Value")}</p><div class="detail-nested-value">${escapeHtml(formatDetailValue(value))}</div></div>`;
-  }
-
-  const entries = Array.isArray(value)
-    ? value.map((item, index) => [String(index), item])
-    : Object.entries(value);
-
-  return `
-    <div class="detail-nested">
-      <div class="detail-nested-level">
-        ${entries.map(([key, childValue]) => {
-          const isObject = childValue && typeof childValue === "object";
-          const blockClass = isObject ? "detail-nested-block detail-nested-block--full" : "detail-nested-block";
-          return `
-            <section class="${blockClass}">
-              <p>${escapeHtml(key)}</p>
-              ${isObject
-                ? renderNestedBlocks(childValue, [...path, key])
-                : `<div class="detail-nested-value">${escapeHtml(formatDetailValue(childValue))}</div>`}
-            </section>
-          `;
-        }).join("")}
-      </div>
-    </div>
-  `;
-}
-
 async function loadCaseComments(caseId) {
   state.caseComments = await apiRequest(`/api/comments?case_id=${encodeURIComponent(caseId)}`);
-}
-
-function renderCaseComments() {
-  const section = document.getElementById("case-comments");
-  const list = document.getElementById("case-comments-list");
-  if (state.activeModel !== "cases" || !state.selectedRecord) {
-    section.classList.add("hidden");
-    list.innerHTML = "";
-    return;
-  }
-
-  section.classList.remove("hidden");
-  if (!Array.isArray(state.caseComments) || state.caseComments.length === 0) {
-    list.innerHTML = "<p class=\"readonly-note\">No comments yet.</p>";
-    return;
-  }
-
-  list.innerHTML = state.caseComments.map((comment) => `
-    <article class="comment-item">
-      <div class="comment-meta">
-        <strong>${escapeHtml(comment.display_name || "Unknown User")}</strong>
-        <span>${escapeHtml(formatDateTime(comment.created_time))}</span>
-      </div>
-      <p>${escapeHtml(comment.content || "")}</p>
-    </article>
-  `).join("");
 }
 
 async function loadAuditRecords(targetType, targetId) {
   state.auditRecords = await apiRequest(`/api/audits?target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}`);
 }
 
+function renderList() {
+  renderListView({
+    config: getConfig(),
+    state,
+    escapeHtml,
+    formatInlineValue,
+    onSort: async (sortBy) => {
+      const modelSort = state.sort[state.activeModel];
+      modelSort.sortDir = modelSort.sortBy === sortBy && modelSort.sortDir === "asc" ? "desc" : "asc";
+      modelSort.sortBy = sortBy;
+      state.pagination[state.activeModel].page = 1;
+      await refreshCurrentModel();
+    },
+    onOpenDetail: async (id) => {
+      await openDetail(id);
+    }
+  });
+}
+
+function renderPagination() {
+  renderPaginationView(state);
+}
+
+function renderDetail() {
+  renderDetailView({
+    config: getConfig(),
+    state,
+    escapeHtml,
+    formatDetailValue,
+    isMultilineValue,
+    getDetailItemClass,
+    formatDateTime
+  });
+}
+
+function renderCaseComments() {
+  renderCaseCommentsView({
+    state,
+    escapeHtml,
+    formatDateTime
+  });
+}
+
 function renderAuditRecords() {
-  const section = document.getElementById("audit-records");
-  const list = document.getElementById("audit-records-list");
-  const toggleButton = document.getElementById("toggle-audit-button");
-
-  if (!state.selectedRecord) {
-    section.classList.add("hidden");
-    list.innerHTML = "";
-    section.classList.remove("audit-collapsed");
-    return;
-  }
-
-  section.classList.remove("hidden");
-  section.classList.toggle("audit-collapsed", !state.auditExpanded);
-  toggleButton.textContent = state.auditExpanded ? "Collapse" : "Expand";
-  if (!Array.isArray(state.auditRecords) || state.auditRecords.length === 0) {
-    list.innerHTML = "<p class=\"readonly-note\">No audit records yet.</p>";
-    return;
-  }
-
-  list.innerHTML = state.auditRecords.map((audit) => `
-    <article class="audit-item">
-      <div class="comment-meta">
-        <strong>${escapeHtml(audit.display_name || "System")}</strong>
-        <span>${escapeHtml(formatDateTime(audit.timestamp))}</span>
-      </div>
-      <div><strong>${escapeHtml(audit.change_type)}</strong></div>
-      <div><span class="readonly-note">Old Value</span><br><code>${escapeHtml(formatDetailValue(audit.old_value))}</code></div>
-      <div><span class="readonly-note">New Value</span><br><code>${escapeHtml(formatDetailValue(audit.new_value))}</code></div>
-    </article>
-  `).join("");
+  renderAuditRecordsView({
+    state,
+    escapeHtml,
+    formatDateTime,
+    formatDetailValue
+  });
 }
 
 function buildInput(field, record) {
@@ -377,7 +214,7 @@ function buildInput(field, record) {
       const activeWorkflows = state.referenceData.workflows.filter((workflow) => workflow.status_code === "ACT");
       workflowId = activeWorkflows[0]?.id || "";
     }
-    const stages = getCaseStagesByWorkflowId(workflowId);
+    const stages = getCaseStagesByWorkflowId(state.referenceData, workflowId);
     return `
       <select name="${field.key}" required>
         ${stages.map((stage) => `<option value="${escapeHtml(stage)}" ${stage === String(value) ? "selected" : ""}>${escapeHtml(stage)}</option>`).join("")}
@@ -456,7 +293,7 @@ function renderEditForm(mode) {
     const stageSelect = form.querySelector('select[name="stage_code"]');
     if (workflowSelect && stageSelect) {
       workflowSelect.addEventListener("change", () => {
-        const stages = getCaseStagesByWorkflowId(workflowSelect.value);
+        const stages = getCaseStagesByWorkflowId(state.referenceData, workflowSelect.value);
         stageSelect.innerHTML = stages
           .map((stage) => `<option value="${escapeHtml(stage)}">${escapeHtml(stage)}</option>`)
           .join("");
