@@ -182,14 +182,6 @@ module.exports = {
       }
 
       ensureStageInWorkflow(payload.stage_code, workflow);
-      const canAccess = await caseModel.canUserAccessWorkflowStage(
-        req.sessionUser.user_id,
-        existingCase.workflow_id,
-        payload.stage_code
-      );
-      if (!canAccess) {
-        return res.status(403).json({ error: "You do not have access to set this stage." });
-      }
 
       const updated = await withUserTransaction(async (queryFn) => {
         const nextCase = await caseModel.updateCase(caseId, payload, req.sessionUser.user_id, queryFn);

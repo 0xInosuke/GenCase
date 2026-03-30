@@ -45,6 +45,17 @@ Case visibility rules:
 - Case list search supports both plain text search and JSON condition search against `case_data`.
 - JSON condition search uses a JSON object such as `{"owner":"alice","severity":"high"}` and still only returns cases visible to the current user.
 
+Detailed case permission logic:
+
+- `GET /api/cases` and `GET /api/cases/:id` return only cases whose current `stage_code` is accessible by at least one active user group of the logged-in user.
+- `PUT /api/cases/:id` requires the user to have access to the case at its current stage before the update starts.
+- During `PUT /api/cases/:id`, `stage_code` must still be a valid stage in the linked workflow.
+- During `PUT /api/cases/:id`, the destination stage does not need to be accessible to the updater's groups.
+- After a stage change, the updater may lose visibility of that case immediately if the new stage is not accessible to their groups.
+- `POST /api/cases` still requires destination-stage access at create time.
+- `DELETE /api/cases/:id` still requires current-stage visibility before deletion.
+- External API behavior is intentionally stricter for updates: the API key must be allowed in the destination stage access list.
+
 Audit rules:
 
 - Audit data is stored in `tb_audit`

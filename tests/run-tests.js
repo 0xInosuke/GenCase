@@ -200,6 +200,38 @@ async function main() {
     assert.equal(bobJsonCases.body.items.length, 1);
     assert.equal(bobJsonCases.body.items[0].case_title, "Candidate A Onboarding");
 
+    const bobStageTransitionCreate = await request("/api/cases", {
+      method: "POST",
+      body: JSON.stringify({
+        workflow_id: 1,
+        case_title: "Bob Transition Case",
+        stage_code: "draft",
+        case_data: {
+          owner: "bob",
+          reason: "progress_to_next_stage"
+        }
+      })
+    });
+    assert.equal(bobStageTransitionCreate.status, 201);
+    const bobTransitionCaseId = bobStageTransitionCreate.body.id;
+
+    const bobStageTransitionUpdate = await request(`/api/cases/${bobTransitionCaseId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        case_title: "Bob Transition Case",
+        stage_code: "manager_review",
+        case_data: {
+          owner: "bob",
+          reason: "progress_to_next_stage"
+        }
+      })
+    });
+    assert.equal(bobStageTransitionUpdate.status, 200);
+    assert.equal(bobStageTransitionUpdate.body.stage_code, "manager_review");
+
+    const bobStageTransitionAfterUpdate = await request(`/api/cases/${bobTransitionCaseId}`);
+    assert.equal(bobStageTransitionAfterUpdate.status, 403);
+
     const bobForbiddenCase = await request("/api/cases/2");
     assert.equal(bobForbiddenCase.status, 403);
 

@@ -96,6 +96,12 @@ docs: documentation updates
 
 Agents should group related changes into a single commit.
 
+Additional required workflow:
+
+- After any code modification, run the relevant tests before committing.
+- If tests pass, commit the latest related changes and push to GitHub in the same task.
+- If tests fail, do not push; fix failures first, then commit and push.
+
 --------------------------------------------------
 
 # 7. AI BEHAVIOR GUIDELINES

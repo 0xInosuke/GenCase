@@ -199,7 +199,7 @@ module.exports = {
     return getOneForApiKey(result.rows[0].id, apiKeyName, queryFn);
   },
 
-  async updateCase(id, payload, userId, queryFn = queryUser) {
+  async updateCase(id, payload, _userId, queryFn = queryUser) {
     const result = await queryFn(
       `UPDATE tb_case
        SET case_title = $2,
@@ -215,7 +215,7 @@ module.exports = {
       return null;
     }
 
-    return getOneForUser(id, userId, queryFn);
+    return this.getCaseById(id, queryFn);
   },
 
   async updateCaseForApiKey(id, payload, apiKeyName, queryFn = queryUser) {

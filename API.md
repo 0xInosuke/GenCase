@@ -23,6 +23,20 @@ Workflow access rules may contain:
 - group names for logged-in user access
 - API key names for external API access
 
+## Permission Model Summary
+
+The system has two independent case-access paths:
+
+- Session user path (`/api/cases`): access is determined by active user groups.
+- External API path (`/external-api/cases`): access is determined by API key name.
+
+For stage transitions, behavior is different by path:
+
+- Session user update (`PUT /api/cases/:id`): user must access the case at its current stage; destination stage must be valid in the workflow; destination stage access is not required for that updater.
+- External API update (`PUT /external-api/cases/:id`): API key must access the case at its current stage and must also be allowed in the destination stage access list.
+
+In both paths, a caller may lose visibility immediately after moving a case to a stage they cannot access.
+
 ## Base Path
 
 All external case routes are under:
