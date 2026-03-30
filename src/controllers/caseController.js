@@ -87,7 +87,7 @@ function parseListOptions(query) {
   const sort = normalizeSort(
     query.sort_by,
     query.sort_dir,
-    ["id", "workflow_id", "wf_name", "case_title", "stage_code", "created_at"],
+    ["id", "workflow_id", "wf_name", "case_title", "stage_code", "last_edited_by", "last_edited_at", "created_at"],
     "id"
   );
 

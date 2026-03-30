@@ -20,6 +20,10 @@ function renderCellContent(column, row, escapeHtml, formatInlineValue) {
     return `<span class="stage-badge stage-badge--tone-${tone}" title="${escapeHtml(formattedValue)}">${escapeHtml(formattedValue)}</span>`;
   }
 
+  if (column.cellType === "datetime") {
+    return escapeHtml(value ? new Date(value).toLocaleString() : "");
+  }
+
   return escapeHtml(formattedValue);
 }
 

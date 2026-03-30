@@ -1,6 +1,31 @@
 const { queryUser } = require("../config/database");
 const { buildPagedResult } = require("../utils/listQuery");
 
+const CASE_LAST_ACTIVITY_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT
+        a.user_id,
+        COALESCE(u.display_name, a.user_id) AS display_name,
+        a.timestamp
+    FROM tb_audit a
+    LEFT JOIN tb_user u
+      ON u.id = CASE
+        WHEN a.user_id ~ '^[0-9]+$' THEN CAST(a.user_id AS BIGINT)
+        ELSE NULL
+      END
+    WHERE a.target_type = 'case'
+      AND a.target_id = c.id
+    ORDER BY a.timestamp DESC, a.id DESC
+    LIMIT 1
+  ) last_activity ON TRUE
+`;
+
+const CASE_FROM_WITH_ACTIVITY = `
+  FROM tb_case c
+  INNER JOIN tb_workflow w ON w.id = c.workflow_id
+  ${CASE_LAST_ACTIVITY_JOIN}
+`;
+
 const CASE_DETAIL_SELECT = `
   SELECT
       c.id,
@@ -9,10 +34,11 @@ const CASE_DETAIL_SELECT = `
       c.case_title,
       c.stage_code,
       c.case_data,
+      last_activity.display_name AS last_edited_by,
+      last_activity.timestamp AS last_edited_at,
       c.created_at,
       c.updated_at
-  FROM tb_case c
-  INNER JOIN tb_workflow w ON w.id = c.workflow_id
+  ${CASE_FROM_WITH_ACTIVITY}
 `;
 
 const CASE_VISIBILITY_EXISTS = `
@@ -111,11 +137,12 @@ module.exports = {
           c.case_title,
           c.stage_code,
           c.case_data,
+          last_activity.display_name AS last_edited_by,
+          last_activity.timestamp AS last_edited_at,
           c.created_at,
           c.updated_at,
           COUNT(*) OVER() AS total_count
-       FROM tb_case c
-       INNER JOIN tb_workflow w ON w.id = c.workflow_id
+       ${CASE_FROM_WITH_ACTIVITY}
        WHERE ${CASE_VISIBILITY_EXISTS}
          AND ($2::jsonb IS NULL OR c.case_data @> $2::jsonb)
          AND (
@@ -144,11 +171,12 @@ module.exports = {
           c.case_title,
           c.stage_code,
           c.case_data,
+          last_activity.display_name AS last_edited_by,
+          last_activity.timestamp AS last_edited_at,
           c.created_at,
           c.updated_at,
           COUNT(*) OVER() AS total_count
-       FROM tb_case c
-       INNER JOIN tb_workflow w ON w.id = c.workflow_id
+       ${CASE_FROM_WITH_ACTIVITY}
        WHERE ${CASE_APIKEY_VISIBILITY_EXISTS}
          AND ($2::jsonb IS NULL OR c.case_data @> $2::jsonb)
          AND (

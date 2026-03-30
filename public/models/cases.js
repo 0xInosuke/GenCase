@@ -7,7 +7,9 @@ export function createCasesConfig(parseJsonInput) {
       { key: "id", label: "ID", sortable: true, width: "84px" },
       { key: "case_title", label: "Case Title", sortable: true, width: "minmax(280px, 1.8fr)" },
       { key: "wf_name", label: "Workflow", sortable: true, width: "minmax(220px, 1.2fr)" },
-      { key: "stage_code", label: "Stage", sortable: true, width: "150px", cellType: "stage-badge" }
+      { key: "stage_code", label: "Stage", sortable: true, width: "150px", cellType: "stage-badge" },
+      { key: "last_edited_by", label: "Last Edited By", sortable: true, width: "180px" },
+      { key: "last_edited_at", label: "Last Edited Date", sortable: true, width: "190px", cellType: "datetime" }
     ],
     detailFields: [
       { key: "id", label: "ID", span: "half", tone: "meta" },

@@ -528,6 +528,15 @@ async function main() {
     assert.ok(cases.body.items.some((item) => item.id === createdCaseId));
     assert.ok(cases.body.pagination.total_count >= 1);
 
+    const casesByLastEditedAt = await request("/api/cases?sort_by=last_edited_at&sort_dir=desc&page=1&page_size=20");
+    assert.equal(casesByLastEditedAt.status, 200);
+    assert.ok(casesByLastEditedAt.body.items.some((item) => Object.hasOwn(item, "last_edited_at")));
+    assert.ok(casesByLastEditedAt.body.items.some((item) => Object.hasOwn(item, "last_edited_by")));
+
+    const casesByLastEditedBy = await request("/api/cases?sort_by=last_edited_by&sort_dir=asc&page=1&page_size=20");
+    assert.equal(casesByLastEditedBy.status, 200);
+    assert.ok(casesByLastEditedBy.body.items.some((item) => item.id === createdCaseId));
+
     const updatedUser = await request(`/api/users/${createdUserId}`, {
       method: "PUT",
       body: JSON.stringify({

@@ -42,6 +42,7 @@ Case visibility rules:
 - Comments can be created but not deleted by users.
 - Cases now store a dedicated `case_title` column in `tb_case`.
 - Case list view, case detail view, and case search all include `case_title`.
+- Case list view includes sortable `last edited by` and `last edited date` columns based on the latest case audit activity, including comment activity.
 - Case list search supports both plain text search and JSON condition search against `case_data`.
 - JSON condition search uses a JSON object such as `{"owner":"alice","severity":"high"}` and still only returns cases visible to the current user.
 - Case detail view supports one-click export to `.json` or `.md`, including case fields, `case_data`, and all visible comments with author, timestamp, and content.
