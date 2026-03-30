@@ -152,6 +152,7 @@ Cross-platform script rules:
 - Friendly mode supports adding/removing object fields and array items at any nested level.
 - Editing in either mode updates the other mode when the JSON is valid, and saved payloads still use JSON format.
 - Detail pages render nested `case_data` as hierarchical key-value blocks instead of a raw JSON blob.
+- Frontend code is organized as ES modules so model-specific view logic can be maintained independently.
 - Audit records are collapsed by default and can be expanded on demand.
 - System messages appear near the page header and auto-dismiss instead of persisting across views.
 - Case update flow now handles "access lost after stage transition" explicitly and shows a clear message instead of leaving the user without context.
@@ -168,5 +169,8 @@ Cross-platform script rules:
 - [src/controllers](./src/controllers): request handlers
 - [src/models](./src/models): database access layer
 - [src/routes](./src/routes): API routes
-- [public](./public): frontend assets
+- [public/app.js](./public/app.js): frontend entry/orchestration module
+- [public/core](./public/core): shared frontend constants, state, and utility functions
+- [public/models](./public/models): per-model frontend config modules (users, groups, user-groups, workflows, cases)
+- [public/components](./public/components): reusable frontend components (including case_data editor)
 - [tests/run-tests.js](./tests/run-tests.js): integration smoke tests
