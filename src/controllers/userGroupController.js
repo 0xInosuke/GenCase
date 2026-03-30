@@ -2,7 +2,7 @@ const userGroupModel = require("../models/userGroupModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseUserGroupPayload(body) {
   const userId = Number(body.user_id);
@@ -72,7 +72,19 @@ module.exports = {
 
   async create(req, res, next) {
     try {
-      const created = await userGroupModel.createUserGroup(parseUserGroupPayload(req.body));
+      const payload = parseUserGroupPayload(req.body);
+      const created = await withUserTransaction(async (queryFn) => {
+        const nextRelation = await userGroupModel.createUserGroup(payload, queryFn);
+        const auditEntries = buildCreateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: nextRelation.id,
+          targetType: "user_group",
+          record: nextRelation,
+          dataFields: ["user_id", "group_id"]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextRelation;
+      });
       res.status(201).json(created);
     } catch (error) {
       next(error);

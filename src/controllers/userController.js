@@ -2,7 +2,7 @@ const userModel = require("../models/userModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseCreatePayload(body) {
   const userName = String(body.user_name || "").trim();
@@ -110,7 +110,22 @@ module.exports = {
 
   async create(req, res, next) {
     try {
-      const created = await userModel.createUser(parseCreatePayload(req.body));
+      const payload = parseCreatePayload(req.body);
+      const created = await withUserTransaction(async (queryFn) => {
+        const nextUser = await userModel.createUser(payload, queryFn);
+        const auditEntries = buildCreateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: nextUser.id,
+          targetType: "user",
+          record: nextUser,
+          dataFields: ["display_name"],
+          protectedFields: [
+            { name: "user_password", changeType: "PASSWORD_CHANGE" }
+          ]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextUser;
+      });
       res.status(201).json(created);
     } catch (error) {
       next(error);

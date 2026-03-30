@@ -292,6 +292,16 @@ async function main() {
     const createdUserId = userCreate.body.id;
     assert.equal(userCreate.body.display_name, "Delta User");
 
+    const userAuditAfterCreate = await request(`/api/audits?target_type=user&target_id=${createdUserId}`);
+    assert.equal(userAuditAfterCreate.status, 200);
+    assert.ok(
+      userAuditAfterCreate.body.some((item) =>
+        item.change_type === "STATUS_CHANGE" && item.old_value === "" && item.new_value === "ACT"
+      )
+    );
+    assert.ok(userAuditAfterCreate.body.some((item) => item.change_type === "DATA_CHANGE"));
+    assert.ok(userAuditAfterCreate.body.some((item) => item.change_type === "PASSWORD_CHANGE"));
+
     const groupCreate = await request("/api/groups", {
       method: "POST",
       body: JSON.stringify({
@@ -301,6 +311,15 @@ async function main() {
     });
     assert.equal(groupCreate.status, 201);
     const createdGroupId = groupCreate.body.id;
+
+    const groupAuditAfterCreate = await request(`/api/audits?target_type=group&target_id=${createdGroupId}`);
+    assert.equal(groupAuditAfterCreate.status, 200);
+    assert.ok(
+      groupAuditAfterCreate.body.some((item) =>
+        item.change_type === "STATUS_CHANGE" && item.old_value === "" && item.new_value === "ACT"
+      )
+    );
+    assert.ok(groupAuditAfterCreate.body.some((item) => item.change_type === "DATA_CHANGE"));
 
     const userGroupCreate = await request("/api/user-groups", {
       method: "POST",
@@ -312,6 +331,15 @@ async function main() {
     });
     assert.equal(userGroupCreate.status, 201);
     const createdUserGroupId = userGroupCreate.body.id;
+
+    const userGroupAuditAfterCreate = await request(`/api/audits?target_type=user_group&target_id=${createdUserGroupId}`);
+    assert.equal(userGroupAuditAfterCreate.status, 200);
+    assert.ok(
+      userGroupAuditAfterCreate.body.some((item) =>
+        item.change_type === "STATUS_CHANGE" && item.old_value === "" && item.new_value === "PEND"
+      )
+    );
+    assert.ok(userGroupAuditAfterCreate.body.some((item) => item.change_type === "DATA_CHANGE"));
 
     const workflowCreate = await request("/api/workflows", {
       method: "POST",
@@ -360,6 +388,15 @@ async function main() {
     assert.equal(caseCreate.body.wf_name, "change_management");
     assert.equal(caseCreate.body.case_title, "Infrastructure Rollout");
 
+    const caseAuditAfterCreate = await request(`/api/audits?target_type=case&target_id=${createdCaseId}`);
+    assert.equal(caseAuditAfterCreate.status, 200);
+    assert.ok(
+      caseAuditAfterCreate.body.some((item) =>
+        item.change_type === "STATUS_CHANGE" && item.old_value === "" && item.new_value === "draft"
+      )
+    );
+    assert.ok(caseAuditAfterCreate.body.some((item) => item.change_type === "DATA_CHANGE"));
+
     const externalCaseCreate = await requestExternal("/external-api/cases", {
       method: "POST",
       body: JSON.stringify({
@@ -376,6 +413,20 @@ async function main() {
     assert.equal(externalCaseCreate.status, 201);
     const externalCreatedCaseId = externalCaseCreate.body.id;
     assert.equal(externalCaseCreate.body.case_title, "External API Case");
+
+    const externalCreateAudit = await request(`/api/audits?target_type=case&target_id=${externalCreatedCaseId}`);
+    assert.equal(externalCreateAudit.status, 200);
+    assert.ok(
+      externalCreateAudit.body.some((item) =>
+        item.user_id === "system1_api_key"
+        && item.change_type === "STATUS_CHANGE"
+        && item.old_value === ""
+        && item.new_value === "draft"
+      )
+    );
+    assert.ok(
+      externalCreateAudit.body.some((item) => item.user_id === "system1_api_key" && item.change_type === "DATA_CHANGE")
+    );
 
     const externalList = await requestExternal("/external-api/cases?search=%7B%22source%22%3A%22system1%22%7D&sort_by=id&sort_dir=asc&page=1&page_size=20");
     assert.equal(externalList.status, 200);

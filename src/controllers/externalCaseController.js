@@ -1,7 +1,7 @@
 const caseModel = require("../models/caseModel");
 const workflowModel = require("../models/workflowModel");
 const { withUserTransaction } = require("../config/database");
-const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 
 function fail(message) {
@@ -157,12 +157,11 @@ module.exports = {
 
       const created = await withUserTransaction(async (queryFn) => {
         const nextCase = await caseModel.createCaseForApiKey(payload, req.apiClient.api_key_name, queryFn);
-        const auditEntries = buildUpdateAuditEntries({
+        const auditEntries = buildCreateAuditEntries({
           userId: req.apiClient.api_key_name,
           targetId: nextCase.id,
           targetType: "case",
-          previousRecord: {},
-          nextRecord: nextCase,
+          record: nextCase,
           statusField: "stage_code",
           statusChangeType: "STATUS_CHANGE",
           dataFields: ["case_title", "case_data"]

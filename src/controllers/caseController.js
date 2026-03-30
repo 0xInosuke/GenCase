@@ -2,7 +2,7 @@ const caseModel = require("../models/caseModel");
 const workflowModel = require("../models/workflowModel");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function fail(message) {
   const error = new Error(message);
@@ -160,7 +160,20 @@ module.exports = {
         return res.status(403).json({ error: "You do not have access to create a case at this stage." });
       }
 
-      const created = await caseModel.createCase(payload, req.sessionUser.user_id);
+      const created = await withUserTransaction(async (queryFn) => {
+        const nextCase = await caseModel.createCase(payload, req.sessionUser.user_id, queryFn);
+        const auditEntries = buildCreateAuditEntries({
+          userId: req.sessionUser.user_id,
+          targetId: nextCase.id,
+          targetType: "case",
+          record: nextCase,
+          statusField: "stage_code",
+          statusChangeType: "STATUS_CHANGE",
+          dataFields: ["case_title", "case_data"]
+        });
+        await createEntries(auditEntries, queryFn);
+        return nextCase;
+      });
       res.status(201).json(created);
     } catch (error) {
       next(error);

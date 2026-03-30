@@ -63,8 +63,7 @@ Audit rules:
 - Users cannot create, edit, or delete audit records from the UI
 - Audit records are shown at the bottom of each object detail page
 - Audit records are ordered by timestamp descending
-- Updates to `user`, `group`, `user_group`, `workflow`, and `case` create audit entries
-- Workflow create and update operations both generate audit entries
+- Create and update operations for `user`, `group`, `user_group`, `workflow`, and `case` generate audit entries
 - `ADD_COMMENTS` audit entries belong to the related case, not to the comment model itself
 - Sensitive or structured values such as JSON payloads are stored as MD5 hashes in audit records
 - Simple status transitions such as `status_code` changes are stored as real values
