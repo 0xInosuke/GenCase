@@ -1,3 +1,28 @@
+function hashText(value) {
+  let hash = 0;
+  for (const char of String(value || "")) {
+    hash = ((hash << 5) - hash) + char.charCodeAt(0);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function getStageBadgeTone(value) {
+  return (hashText(value) % 10) + 1;
+}
+
+function renderCellContent(column, row, escapeHtml, formatInlineValue) {
+  const value = row[column.key];
+  const formattedValue = formatInlineValue(value);
+
+  if (column.cellType === "stage-badge") {
+    const tone = getStageBadgeTone(formattedValue);
+    return `<span class="stage-badge stage-badge--tone-${tone}" title="${escapeHtml(formattedValue)}">${escapeHtml(formattedValue)}</span>`;
+  }
+
+  return escapeHtml(formattedValue);
+}
+
 export function renderList({
   config,
   state,
@@ -26,7 +51,7 @@ export function renderList({
 
   const body = rows.map((row) => `
     <tr data-row-id="${row.id}">
-      ${config.listColumns.map((column) => `<td>${escapeHtml(formatInlineValue(row[column.key]))}</td>`).join("")}
+      ${config.listColumns.map((column) => `<td>${renderCellContent(column, row, escapeHtml, formatInlineValue)}</td>`).join("")}
     </tr>
   `).join("");
   const colgroup = config.listColumns

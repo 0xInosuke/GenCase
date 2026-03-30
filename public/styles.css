@@ -13,6 +13,36 @@
   --border-strong: rgba(46, 111, 158, 0.22);
   --danger: #b42318;
   --shadow: 0 12px 28px rgba(34, 77, 117, 0.08);
+  --stage-tone-1-bg: #e7eef7;
+  --stage-tone-1-border: #bfd1e4;
+  --stage-tone-1-text: #2d4b67;
+  --stage-tone-2-bg: #eaf3ee;
+  --stage-tone-2-border: #c2d8ca;
+  --stage-tone-2-text: #315648;
+  --stage-tone-3-bg: #f4eee5;
+  --stage-tone-3-border: #decfb8;
+  --stage-tone-3-text: #6b5230;
+  --stage-tone-4-bg: #efe8f4;
+  --stage-tone-4-border: #d2c1dd;
+  --stage-tone-4-text: #5b4770;
+  --stage-tone-5-bg: #e8f2f2;
+  --stage-tone-5-border: #bfd7d6;
+  --stage-tone-5-text: #2f5a58;
+  --stage-tone-6-bg: #f5ebe8;
+  --stage-tone-6-border: #dfc7c0;
+  --stage-tone-6-text: #6d473d;
+  --stage-tone-7-bg: #edf0e5;
+  --stage-tone-7-border: #d1d8bc;
+  --stage-tone-7-text: #56663a;
+  --stage-tone-8-bg: #e8edf4;
+  --stage-tone-8-border: #c1cddd;
+  --stage-tone-8-text: #415771;
+  --stage-tone-9-bg: #f3e9ee;
+  --stage-tone-9-border: #dcc3ce;
+  --stage-tone-9-text: #6b4456;
+  --stage-tone-10-bg: #edf3e8;
+  --stage-tone-10-border: #cadabc;
+  --stage-tone-10-text: #48653a;
 }
 
 * {
@@ -268,6 +298,82 @@ tbody tr {
 
 tbody tr:hover {
   background: rgba(46, 111, 158, 0.06);
+}
+
+.stage-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage-badge--tone-1 {
+  background: var(--stage-tone-1-bg);
+  border-color: var(--stage-tone-1-border);
+  color: var(--stage-tone-1-text);
+}
+
+.stage-badge--tone-2 {
+  background: var(--stage-tone-2-bg);
+  border-color: var(--stage-tone-2-border);
+  color: var(--stage-tone-2-text);
+}
+
+.stage-badge--tone-3 {
+  background: var(--stage-tone-3-bg);
+  border-color: var(--stage-tone-3-border);
+  color: var(--stage-tone-3-text);
+}
+
+.stage-badge--tone-4 {
+  background: var(--stage-tone-4-bg);
+  border-color: var(--stage-tone-4-border);
+  color: var(--stage-tone-4-text);
+}
+
+.stage-badge--tone-5 {
+  background: var(--stage-tone-5-bg);
+  border-color: var(--stage-tone-5-border);
+  color: var(--stage-tone-5-text);
+}
+
+.stage-badge--tone-6 {
+  background: var(--stage-tone-6-bg);
+  border-color: var(--stage-tone-6-border);
+  color: var(--stage-tone-6-text);
+}
+
+.stage-badge--tone-7 {
+  background: var(--stage-tone-7-bg);
+  border-color: var(--stage-tone-7-border);
+  color: var(--stage-tone-7-text);
+}
+
+.stage-badge--tone-8 {
+  background: var(--stage-tone-8-bg);
+  border-color: var(--stage-tone-8-border);
+  color: var(--stage-tone-8-text);
+}
+
+.stage-badge--tone-9 {
+  background: var(--stage-tone-9-bg);
+  border-color: var(--stage-tone-9-border);
+  color: var(--stage-tone-9-text);
+}
+
+.stage-badge--tone-10 {
+  background: var(--stage-tone-10-bg);
+  border-color: var(--stage-tone-10-border);
+  color: var(--stage-tone-10-text);
 }
 
 .pagination {
