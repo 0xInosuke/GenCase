@@ -708,6 +708,39 @@ function formatJsonValueType(value) {
   return typeof value;
 }
 
+function buildJsonTypeOptions(selectedType = "string") {
+  const supportedTypes = ["string", "number", "boolean", "null", "object", "array"];
+  return supportedTypes
+    .map((type) => `<option value="${type}" ${selectedType === type ? "selected" : ""}>${type}</option>`)
+    .join("");
+}
+
+function createJsonValueByType(type) {
+  if (type === "number") {
+    return 0;
+  }
+  if (type === "boolean") {
+    return false;
+  }
+  if (type === "null") {
+    return null;
+  }
+  if (type === "object") {
+    return {};
+  }
+  if (type === "array") {
+    return [];
+  }
+  return "";
+}
+
+function getValueAtPath(target, path) {
+  if (path.length === 0) {
+    return target;
+  }
+  return path.reduce((cursor, segment) => cursor?.[segment], target);
+}
+
 function setValueAtPath(target, path, nextValue) {
   if (path.length === 0) {
     return nextValue;
@@ -721,11 +754,97 @@ function setValueAtPath(target, path, nextValue) {
   return target;
 }
 
-function renderCaseDataFriendlyTree(container, rootValue, onLeafChange) {
+function removeValueAtPath(target, path) {
+  if (path.length === 0) {
+    return target;
+  }
+
+  const parentPath = path.slice(0, -1);
+  const parent = getValueAtPath(target, parentPath);
+  const lastSegment = path[path.length - 1];
+  if (Array.isArray(parent)) {
+    parent.splice(Number(lastSegment), 1);
+    return target;
+  }
+  if (isPlainObject(parent)) {
+    delete parent[lastSegment];
+  }
+  return target;
+}
+
+function addObjectFieldAtPath(target, path, key, valueType) {
+  const targetNode = getValueAtPath(target, path);
+  if (!isPlainObject(targetNode)) {
+    return target;
+  }
+  targetNode[key] = createJsonValueByType(valueType);
+  return target;
+}
+
+function addArrayItemAtPath(target, path, valueType) {
+  const targetNode = getValueAtPath(target, path);
+  if (!Array.isArray(targetNode)) {
+    return target;
+  }
+  targetNode.push(createJsonValueByType(valueType));
+  return target;
+}
+
+function renderCaseDataFriendlyTree(container, rootValue, handlers) {
   container.innerHTML = "";
+  const onLeafChange = handlers.onLeafChange;
+  const onRemove = handlers.onRemove;
+  const onAddObjectField = handlers.onAddObjectField;
+  const onAddArrayItem = handlers.onAddArrayItem;
+
+  function buildNodeActions(path, value) {
+    const actions = document.createElement("div");
+    actions.className = "json-tree-actions";
+
+    if (isPlainObject(value)) {
+      actions.innerHTML = `
+        <input data-json-add-key type="text" placeholder="new_key">
+        <select data-json-add-type>${buildJsonTypeOptions("string")}</select>
+        <button type="button" class="secondary compact" data-json-add-field>Add Field</button>
+      `;
+      const keyInput = actions.querySelector("[data-json-add-key]");
+      const typeSelect = actions.querySelector("[data-json-add-type]");
+      const addButton = actions.querySelector("[data-json-add-field]");
+      addButton.addEventListener("click", () => {
+        const key = String(keyInput.value || "").trim();
+        if (!key) {
+          setStatus("Field key is required.", true);
+          return;
+        }
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          setStatus(`Field '${key}' already exists.`, true);
+          return;
+        }
+        onAddObjectField(path, key, typeSelect.value);
+        keyInput.value = "";
+      });
+      return actions;
+    }
+
+    if (Array.isArray(value)) {
+      actions.innerHTML = `
+        <select data-json-add-type>${buildJsonTypeOptions("string")}</select>
+        <button type="button" class="secondary compact" data-json-add-item>Add Item</button>
+      `;
+      const typeSelect = actions.querySelector("[data-json-add-type]");
+      const addButton = actions.querySelector("[data-json-add-item]");
+      addButton.addEventListener("click", () => {
+        onAddArrayItem(path, typeSelect.value);
+      });
+      return actions;
+    }
+
+    return actions;
+  }
 
   function renderNodeChildren(parent, value, path, level) {
     if (isPlainObject(value)) {
+      parent.appendChild(buildNodeActions(path, value));
       const entries = Object.entries(value);
       if (entries.length === 0) {
         const emptyNote = document.createElement("p");
@@ -742,6 +861,7 @@ function renderCaseDataFriendlyTree(container, rootValue, onLeafChange) {
     }
 
     if (Array.isArray(value)) {
+      parent.appendChild(buildNodeActions(path, value));
       if (value.length === 0) {
         const emptyNote = document.createElement("p");
         emptyNote.className = "readonly-note";
@@ -764,9 +884,20 @@ function renderCaseDataFriendlyTree(container, rootValue, onLeafChange) {
       block.innerHTML = `
         <summary>
           <span class="json-tree-key">${escapeHtml(String(keyLabel))}</span>
-          <span class="json-tree-type">${escapeHtml(formatJsonValueType(value))}</span>
+          <span class="json-tree-summary-actions">
+            <span class="json-tree-type">${escapeHtml(formatJsonValueType(value))}</span>
+            ${path.length > 0 ? "<button type=\"button\" class=\"secondary compact\" data-json-remove>Remove</button>" : ""}
+          </span>
         </summary>
       `;
+      const removeButton = block.querySelector("[data-json-remove]");
+      if (removeButton) {
+        removeButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onRemove(path);
+        });
+      }
 
       const content = document.createElement("div");
       content.className = "json-tree-children";
@@ -783,13 +914,20 @@ function renderCaseDataFriendlyTree(container, rootValue, onLeafChange) {
         <span class="json-tree-key">${escapeHtml(String(keyLabel))}</span>
         <span class="json-tree-type">${escapeHtml(formatJsonValueType(value))}</span>
       </div>
-      <input type="text" value="${escapeHtml(formatSimpleEditorValue(value))}">
+      <div class="json-tree-leaf-edit">
+        <input type="text" value="${escapeHtml(formatSimpleEditorValue(value))}">
+        ${path.length > 0 ? "<button type=\"button\" class=\"secondary compact\" data-json-remove>Remove</button>" : ""}
+      </div>
     `;
 
     const valueInput = row.querySelector("input");
     valueInput.addEventListener("input", () => {
       onLeafChange(path, valueInput.value);
     });
+    const removeButton = row.querySelector("[data-json-remove]");
+    if (removeButton) {
+      removeButton.addEventListener("click", () => onRemove(path));
+    }
 
     parent.appendChild(row);
   }
@@ -830,10 +968,27 @@ function initCaseDataEditor(form, initialValue) {
 
   function renderFriendly(value) {
     friendlyValue = cloneJsonValue(value);
-    renderCaseDataFriendlyTree(treeContainer, friendlyValue, (path, rawInput) => {
-      const nextValue = parseSimpleEditorValue(rawInput);
-      friendlyValue = setValueAtPath(friendlyValue, path, nextValue);
-      syncRawFromFriendly();
+    renderCaseDataFriendlyTree(treeContainer, friendlyValue, {
+      onLeafChange(path, rawInput) {
+        const nextValue = parseSimpleEditorValue(rawInput);
+        friendlyValue = setValueAtPath(friendlyValue, path, nextValue);
+        syncRawFromFriendly();
+      },
+      onRemove(path) {
+        friendlyValue = removeValueAtPath(friendlyValue, path);
+        renderFriendly(friendlyValue);
+        syncRawFromFriendly();
+      },
+      onAddObjectField(path, key, valueType) {
+        friendlyValue = addObjectFieldAtPath(friendlyValue, path, key, valueType);
+        renderFriendly(friendlyValue);
+        syncRawFromFriendly();
+      },
+      onAddArrayItem(path, valueType) {
+        friendlyValue = addArrayItemAtPath(friendlyValue, path, valueType);
+        renderFriendly(friendlyValue);
+        syncRawFromFriendly();
+      }
     });
   }
 
@@ -964,7 +1119,7 @@ function buildInput(field, record) {
           <button type="button" class="secondary compact" data-json-mode="json">JSON Editor</button>
         </div>
         <div class="json-editor-panel" data-json-simple>
-          <p class="readonly-note">Nested objects and arrays are shown level-by-level. Edit leaf values directly; changes sync to JSON editor.</p>
+          <p class="readonly-note">Nested objects and arrays are shown level-by-level. You can edit leaf values and add/remove object fields or array items. Changes sync to JSON editor.</p>
           <div class="json-tree" data-json-tree></div>
         </div>
         <div class="json-editor-panel hidden" data-json-raw>

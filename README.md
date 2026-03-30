@@ -133,6 +133,7 @@ Default seeded active user for login:
 - [scripts/api_test2.ps1](./scripts/api_test2.ps1): example external API list and update script
 - `npm.cmd start`: starts the web server
 - `npm.cmd test`: runs integration tests against the local database
+- Integration tests tolerate additional user-created records and avoid strict equality on seeded row counts.
 
 Cross-platform script rules:
 
@@ -148,6 +149,7 @@ Cross-platform script rules:
   - a friendly nested input mode (default)
   - a raw JSON editor mode
 - Friendly mode renders multi-level object/array data as nested blocks and lets users edit leaf values directly.
+- Friendly mode supports adding/removing object fields and array items at any nested level.
 - Editing in either mode updates the other mode when the JSON is valid, and saved payloads still use JSON format.
 - Detail pages render nested `case_data` as hierarchical key-value blocks instead of a raw JSON blob.
 - Audit records are collapsed by default and can be expanded on demand.
