@@ -147,6 +147,12 @@ Cross-platform script rules:
 - Detail pages render nested `case_data` as hierarchical key-value blocks instead of a raw JSON blob.
 - Audit records are collapsed by default and can be expanded on demand.
 - System messages appear near the page header and auto-dismiss instead of persisting across views.
+- Case update flow now handles "access lost after stage transition" explicitly and shows a clear message instead of leaving the user without context.
+
+## Server Logging
+
+- `case` update requests log start/deny/success events with user and case IDs.
+- Global API error middleware logs request method, path, actor identity, status code, and stack/message for faster debugging.
 
 ## Structure
 

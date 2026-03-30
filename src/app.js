@@ -34,7 +34,7 @@ app.get("/index.html", requirePageAuth, (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || "Unexpected server error.";
 
@@ -49,6 +49,10 @@ app.use((err, _req, res, _next) => {
     statusCode = 400;
     message = "One or more values use an invalid format.";
   }
+
+  const actor = req.sessionUser?.user_name || req.apiClient?.api_key_name || "anonymous";
+  const details = err.stack || err.message || String(err);
+  console.error(`[api.error] method=${req.method} path=${req.originalUrl} actor=${actor} status=${statusCode}\n${details}`);
 
   res.status(statusCode).json({
     error: message

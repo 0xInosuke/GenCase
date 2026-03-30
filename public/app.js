@@ -312,9 +312,15 @@ async function apiRequest(path, options = {}) {
     return null;
   }
 
-  const data = await response.json();
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : { error: await response.text() };
+
   if (!response.ok) {
-    throw new Error(data.error || "Request failed.");
+    const error = new Error(data.error || "Request failed.");
+    error.status = response.status;
+    throw error;
   }
 
   return data;
@@ -776,12 +782,24 @@ function renderEditForm(mode) {
         await openDetail(saved.id);
         setStatus(`${config.label.slice(0, -1) || config.label} created.`);
       } else {
-        await loadAuditRecords(config.targetType, saved.id);
-        renderDetail();
-        toggleView("detail");
-        renderAuditRecords();
-        updateHeader();
-        setStatus(`${config.label.slice(0, -1) || config.label} updated.`);
+        try {
+          await loadAuditRecords(config.targetType, saved.id);
+          renderDetail();
+          toggleView("detail");
+          renderAuditRecords();
+          updateHeader();
+          setStatus(`${config.label.slice(0, -1) || config.label} updated.`);
+        } catch (error) {
+          const isCaseAccessLost = state.activeModel === "cases" && error.status === 403;
+          if (!isCaseAccessLost) {
+            throw error;
+          }
+
+          state.selectedRecord = null;
+          toggleView("list");
+          updateHeader();
+          setStatus("Case updated. It is now in a stage you can no longer access.");
+        }
       }
     } catch (error) {
       setStatus(error.message, true);

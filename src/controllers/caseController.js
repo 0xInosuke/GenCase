@@ -170,14 +170,19 @@ module.exports = {
   async update(req, res, next) {
     try {
       const caseId = Number(req.params.id);
+      const userId = req.sessionUser.user_id;
+      console.info(`[case.update] user=${userId} case=${caseId} received update request`);
+
       const existingCase = await caseModel.getCaseByIdForUser(caseId, req.sessionUser.user_id);
       if (!existingCase) {
+        console.warn(`[case.update] user=${userId} case=${caseId} denied: no access to current stage`);
         return res.status(403).json({ error: "You do not have access to this case." });
       }
 
       const payload = parseUpdatePayload(req.body);
       const workflow = await workflowModel.getWorkflowById(existingCase.workflow_id);
       if (!workflow) {
+        console.warn(`[case.update] user=${userId} case=${caseId} failed: linked workflow not found`);
         return res.status(400).json({ error: "The linked workflow no longer exists." });
       }
 
@@ -198,6 +203,10 @@ module.exports = {
         await createEntries(auditEntries, queryFn);
         return nextCase;
       });
+
+      console.info(
+        `[case.update] user=${userId} case=${caseId} updated stage=${existingCase.stage_code}->${updated.stage_code}`
+      );
       res.json(updated);
     } catch (error) {
       next(error);
