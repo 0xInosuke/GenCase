@@ -2,7 +2,7 @@ const userModel = require("../models/userModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildDeleteAuditEntry, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseCreatePayload(body) {
   const userName = String(body.user_name || "").trim();
@@ -170,7 +170,32 @@ module.exports = {
 
   async remove(req, res, next) {
     try {
-      const deleted = await userModel.deleteUser(Number(req.params.id));
+      const userId = Number(req.params.id);
+      const existingUser = await userModel.getUserById(userId);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found." });
+      }
+
+      const deleted = await withUserTransaction(async (queryFn) => {
+        const removedUser = await userModel.deleteUser(userId, queryFn);
+        if (!removedUser) {
+          return null;
+        }
+
+        await createEntries(
+          [
+            buildDeleteAuditEntry({
+              userId: req.sessionUser.user_id,
+              targetId: userId,
+              targetType: "user",
+              changeType: "REMOVE_USER"
+            })
+          ],
+          queryFn
+        );
+
+        return removedUser;
+      });
       if (!deleted) {
         return res.status(404).json({ error: "User not found." });
       }

@@ -131,9 +131,21 @@ function buildCommentAuditEntry({ userId, caseId, commentId }) {
   };
 }
 
+function buildDeleteAuditEntry({ userId, targetId, targetType, changeType }) {
+  return {
+    user_id: userId,
+    target_id: targetId,
+    target_type: targetType,
+    change_type: changeType,
+    old_value: String(targetId),
+    new_value: "0"
+  };
+}
+
 module.exports = {
   buildCreateAuditEntries,
   buildCommentAuditEntry,
+  buildDeleteAuditEntry,
   buildUpdateAuditEntries,
   createEntries
 };

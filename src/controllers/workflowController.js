@@ -2,7 +2,7 @@ const workflowModel = require("../models/workflowModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildDeleteAuditEntry, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function fail(message) {
   const error = new Error(message);
@@ -203,7 +203,32 @@ module.exports = {
 
   async remove(req, res, next) {
     try {
-      const deleted = await workflowModel.deleteWorkflow(Number(req.params.id));
+      const workflowId = Number(req.params.id);
+      const existingWorkflow = await workflowModel.getWorkflowById(workflowId);
+      if (!existingWorkflow) {
+        return res.status(404).json({ error: "Workflow not found." });
+      }
+
+      const deleted = await withUserTransaction(async (queryFn) => {
+        const removedWorkflow = await workflowModel.deleteWorkflow(workflowId, queryFn);
+        if (!removedWorkflow) {
+          return null;
+        }
+
+        await createEntries(
+          [
+            buildDeleteAuditEntry({
+              userId: req.sessionUser.user_id,
+              targetId: workflowId,
+              targetType: "workflow",
+              changeType: "REMOVE_WORKFLOW"
+            })
+          ],
+          queryFn
+        );
+
+        return removedWorkflow;
+      });
       if (!deleted) {
         return res.status(404).json({ error: "Workflow not found." });
       }

@@ -2,7 +2,7 @@ const caseModel = require("../models/caseModel");
 const workflowModel = require("../models/workflowModel");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildDeleteAuditEntry, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function fail(message) {
   const error = new Error(message);
@@ -234,7 +234,26 @@ module.exports = {
         return res.status(403).json({ error: "You do not have access to this case." });
       }
 
-      const deleted = await caseModel.deleteCase(caseId);
+      const deleted = await withUserTransaction(async (queryFn) => {
+        const removedCase = await caseModel.deleteCase(caseId, queryFn);
+        if (!removedCase) {
+          return null;
+        }
+
+        await createEntries(
+          [
+            buildDeleteAuditEntry({
+              userId: req.sessionUser.user_id,
+              targetId: caseId,
+              targetType: "case",
+              changeType: "REMOVE_CASE"
+            })
+          ],
+          queryFn
+        );
+
+        return removedCase;
+      });
       if (!deleted) {
         return res.status(404).json({ error: "Case not found." });
       }

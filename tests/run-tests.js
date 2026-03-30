@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const app = require("../src/app");
+const { queryUser } = require("../src/config/database");
 
 let server;
 let baseUrl;
@@ -626,10 +627,30 @@ async function main() {
     });
     assert.equal(deleteUserGroup.status, 204);
 
+    const userGroupAuditAfterDelete = await request(`/api/audits?target_type=user_group&target_id=${createdUserGroupId}`);
+    assert.equal(userGroupAuditAfterDelete.status, 200);
+    assert.ok(
+      userGroupAuditAfterDelete.body.some((item) =>
+        item.change_type === "REMOVE_USER_GROUP"
+        && item.old_value === String(createdUserGroupId)
+        && item.new_value === "0"
+      )
+    );
+
     const deleteGroup = await request(`/api/groups/${createdGroupId}`, {
       method: "DELETE"
     });
     assert.equal(deleteGroup.status, 204);
+
+    const groupAuditAfterDelete = await request(`/api/audits?target_type=group&target_id=${createdGroupId}`);
+    assert.equal(groupAuditAfterDelete.status, 200);
+    assert.ok(
+      groupAuditAfterDelete.body.some((item) =>
+        item.change_type === "REMOVE_GROUP"
+        && item.old_value === String(createdGroupId)
+        && item.new_value === "0"
+      )
+    );
 
     const deleteWorkflow = await request(`/api/workflows/${createdWorkflowId}`, {
       method: "DELETE"
@@ -641,20 +662,72 @@ async function main() {
     });
     assert.equal(deleteCase.status, 204);
 
+    const deletedCaseAudit = await queryUser(
+      `SELECT change_type, old_value, new_value
+       FROM tb_audit
+       WHERE target_type = 'case'
+         AND target_id = $1
+       ORDER BY id DESC`,
+      [createdCaseId]
+    );
+    assert.ok(
+      deletedCaseAudit.rows.some((item) =>
+        item.change_type === "REMOVE_CASE"
+        && item.old_value === String(createdCaseId)
+        && item.new_value === "0"
+      )
+    );
+
     const deleteExternalCase = await request(`/api/cases/${externalCreatedCaseId}`, {
       method: "DELETE"
     });
     assert.equal(deleteExternalCase.status, 204);
+
+    const deletedExternalCaseAudit = await queryUser(
+      `SELECT user_id, change_type, old_value, new_value
+       FROM tb_audit
+       WHERE target_type = 'case'
+         AND target_id = $1
+       ORDER BY id DESC`,
+      [externalCreatedCaseId]
+    );
+    assert.ok(
+      deletedExternalCaseAudit.rows.some((item) =>
+        item.change_type === "REMOVE_CASE"
+        && item.old_value === String(externalCreatedCaseId)
+        && item.new_value === "0"
+      )
+    );
 
     const deleteWorkflowAfterCase = await request(`/api/workflows/${createdWorkflowId}`, {
       method: "DELETE"
     });
     assert.equal(deleteWorkflowAfterCase.status, 204);
 
+    const workflowAuditAfterDelete = await request(`/api/audits?target_type=workflow&target_id=${createdWorkflowId}`);
+    assert.equal(workflowAuditAfterDelete.status, 200);
+    assert.ok(
+      workflowAuditAfterDelete.body.some((item) =>
+        item.change_type === "REMOVE_WORKFLOW"
+        && item.old_value === String(createdWorkflowId)
+        && item.new_value === "0"
+      )
+    );
+
     const deleteUser = await request(`/api/users/${createdUserId}`, {
       method: "DELETE"
     });
     assert.equal(deleteUser.status, 204);
+
+    const userAuditAfterDelete = await request(`/api/audits?target_type=user&target_id=${createdUserId}`);
+    assert.equal(userAuditAfterDelete.status, 200);
+    assert.ok(
+      userAuditAfterDelete.body.some((item) =>
+        item.change_type === "REMOVE_USER"
+        && item.old_value === String(createdUserId)
+        && item.new_value === "0"
+      )
+    );
 
     const logout = await logoutCurrent();
     assert.equal(logout.status, 204);

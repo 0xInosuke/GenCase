@@ -2,7 +2,7 @@ const groupModel = require("../models/groupModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildDeleteAuditEntry, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseGroupPayload(body) {
   const groupName = String(body.group_name || "").trim();
@@ -118,7 +118,32 @@ module.exports = {
 
   async remove(req, res, next) {
     try {
-      const deleted = await groupModel.deleteGroup(Number(req.params.id));
+      const groupId = Number(req.params.id);
+      const existingGroup = await groupModel.getGroupById(groupId);
+      if (!existingGroup) {
+        return res.status(404).json({ error: "Group not found." });
+      }
+
+      const deleted = await withUserTransaction(async (queryFn) => {
+        const removedGroup = await groupModel.deleteGroup(groupId, queryFn);
+        if (!removedGroup) {
+          return null;
+        }
+
+        await createEntries(
+          [
+            buildDeleteAuditEntry({
+              userId: req.sessionUser.user_id,
+              targetId: groupId,
+              targetType: "group",
+              changeType: "REMOVE_GROUP"
+            })
+          ],
+          queryFn
+        );
+
+        return removedGroup;
+      });
       if (!deleted) {
         return res.status(404).json({ error: "Group not found." });
       }

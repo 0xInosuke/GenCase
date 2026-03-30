@@ -2,7 +2,7 @@ const userGroupModel = require("../models/userGroupModel");
 const { STATUS_CODES } = require("../constants/statusCodes");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { withUserTransaction } = require("../config/database");
-const { buildCreateAuditEntries, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
+const { buildCreateAuditEntries, buildDeleteAuditEntry, buildUpdateAuditEntries, createEntries } = require("../services/auditService");
 
 function parseUserGroupPayload(body) {
   const userId = Number(body.user_id);
@@ -126,7 +126,32 @@ module.exports = {
 
   async remove(req, res, next) {
     try {
-      const deleted = await userGroupModel.deleteUserGroup(Number(req.params.id));
+      const relationId = Number(req.params.id);
+      const existingRelation = await userGroupModel.getUserGroupById(relationId);
+      if (!existingRelation) {
+        return res.status(404).json({ error: "User group relation not found." });
+      }
+
+      const deleted = await withUserTransaction(async (queryFn) => {
+        const removedRelation = await userGroupModel.deleteUserGroup(relationId, queryFn);
+        if (!removedRelation) {
+          return null;
+        }
+
+        await createEntries(
+          [
+            buildDeleteAuditEntry({
+              userId: req.sessionUser.user_id,
+              targetId: relationId,
+              targetType: "user_group",
+              changeType: "REMOVE_USER_GROUP"
+            })
+          ],
+          queryFn
+        );
+
+        return removedRelation;
+      });
       if (!deleted) {
         return res.status(404).json({ error: "User group relation not found." });
       }
