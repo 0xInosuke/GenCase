@@ -26,7 +26,10 @@ app.use((req, res, next) => {
 app.get("/login", (req, res) => {
   const { session } = getRequestSession(req);
   if (session) {
-    return res.redirect("/");
+    const nextPath = typeof req.query.next === "string" && req.query.next.startsWith("/")
+      ? req.query.next
+      : "/";
+    return res.redirect(nextPath);
   }
   res.sendFile(path.join(__dirname, "..", "public", "login.html"));
 });

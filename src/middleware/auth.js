@@ -49,7 +49,8 @@ function requireApiAuth(req, res, next) {
 function requirePageAuth(req, res, next) {
   const { session } = getRequestSession(req);
   if (!session) {
-    return res.redirect("/login");
+    const nextPath = encodeURIComponent(req.originalUrl || "/");
+    return res.redirect(`/login?next=${nextPath}`);
   }
 
   return next();

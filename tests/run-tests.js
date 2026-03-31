@@ -235,7 +235,7 @@ async function main() {
 
     const loginRedirect = await request("/", { redirect: "manual", useAuth: false });
     assert.equal(loginRedirect.status, 302);
-    assert.equal(loginRedirect.headers.get("location"), "/login");
+    assert.equal(loginRedirect.headers.get("location"), "/login?next=%2F");
     markTestCase("root redirects to login");
 
     const unauthorizedUsers = await request("/api/users", { useAuth: false });
@@ -313,6 +313,14 @@ async function main() {
     assert.ok(aliceCaseExport.body.comments.some((item) => item.author === "Alice Chen"));
     assert.ok(typeof aliceCaseExport.body.exported_at === "string");
     markTestCase("alice case export");
+
+    const unauthenticatedDirectCaseRedirect = await request(`/cases/${referenceCaseId}`, {
+      redirect: "manual",
+      useAuth: false
+    });
+    assert.equal(unauthenticatedDirectCaseRedirect.status, 302);
+    assert.equal(unauthenticatedDirectCaseRedirect.headers.get("location"), `/login?next=%2Fcases%2F${referenceCaseId}`);
+    markTestCase("direct case route preserves login redirect");
 
     const aliceDirectCasePage = await request(`/cases/${referenceCaseId}`);
     assert.equal(aliceDirectCasePage.status, 200);

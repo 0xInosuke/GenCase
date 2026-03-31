@@ -32,6 +32,14 @@
   <script>
     const form = document.getElementById("login-form");
     const errorEl = document.getElementById("login-error");
+    const nextParam = new URLSearchParams(window.location.search).get("next");
+
+    function getSafeNextPath() {
+      if (!nextParam || !nextParam.startsWith("/")) {
+        return "/";
+      }
+      return nextParam;
+    }
 
     async function apiRequest(path, options = {}) {
       const response = await fetch(path, {
@@ -65,7 +73,7 @@
             user_password: String(formData.user_password || "")
           })
         });
-        window.location.href = "/";
+        window.location.href = getSafeNextPath();
       } catch (error) {
         errorEl.textContent = error.message;
         errorEl.classList.remove("hidden");
