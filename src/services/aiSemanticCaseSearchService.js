@@ -222,6 +222,10 @@ function selectCandidateSnapshots(snapshots, prompt, limit) {
 
 async function buildSemanticSearchContext(userId, prompt, candidateLimit) {
   const visibleCases = await caseModel.listAllCasesForAi(userId);
+  return buildSemanticSearchContextFromCases(visibleCases, userId, prompt, candidateLimit);
+}
+
+function buildSemanticSearchContextFromCases(visibleCases, userId, prompt, candidateLimit) {
   const bundle = getCachedSnapshotBundle(userId, visibleCases);
   const candidates = selectCandidateSnapshots(bundle.snapshots, prompt, candidateLimit);
 
@@ -234,5 +238,6 @@ async function buildSemanticSearchContext(userId, prompt, candidateLimit) {
 }
 
 module.exports = {
-  buildSemanticSearchContext
+  buildSemanticSearchContext,
+  buildSemanticSearchContextFromCases
 };

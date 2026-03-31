@@ -124,12 +124,18 @@ function buildListUrl(model) {
 }
 
 async function loadList(model = state.activeModel) {
-  if (model === "cases" && state.caseAiSearch?.plan) {
+  if (model === "cases" && state.caseAiSearch?.mode && state.search.cases) {
     const result = await apiRequest("/api/ai/case-search", {
       method: "POST",
       body: JSON.stringify({
-        plan: state.caseAiSearch.plan,
-        explanation: state.caseAiSearch.explanation || "",
+        ...(state.caseAiSearch.mode === "plan" && state.caseAiSearch.plan
+          ? {
+            plan: state.caseAiSearch.plan,
+            explanation: state.caseAiSearch.explanation || ""
+          }
+          : {
+            prompt: state.search.cases
+          }),
         page: state.pagination.cases.page,
         page_size: state.pagination.cases.page_size,
         sort_by: state.sort.cases.sortBy,
@@ -153,33 +159,67 @@ function setAiSearchExplanation(message) {
 
   if (message) {
     explanationEl.textContent = message;
-    modePillEl.textContent = "AI Search";
+    if (state.caseAiSearch?.mode === "semantic") {
+      modePillEl.textContent = "AI Semantic";
+    } else if (state.caseAiSearch?.mode === "plan") {
+      modePillEl.textContent = "AI Plan";
+    } else {
+      modePillEl.textContent = "AI Search";
+    }
     modePillEl.classList.remove("hidden");
     return;
   }
 
   modePillEl.textContent = "";
   modePillEl.classList.add("hidden");
-  explanationEl.textContent = state.activeModel === "cases"
-    ? "Cases support plain text, JSON condition search, and natural-language AI search in the same field."
-    : "";
+  if (state.activeModel !== "cases") {
+    explanationEl.textContent = "";
+    return;
+  }
+
+  explanationEl.textContent = state.aiStatus.enabled
+    ? `AI search is enabled${state.aiStatus.semantic_filter_enabled ? " with semantic filtering" : ""}. Non-JSON case queries prefer AI.`
+    : "Cases support plain text, JSON condition search, and natural-language AI search in the same field.";
 }
 
-function isLikelyAiCaseSearch(inputValue) {
-  const value = String(inputValue || "").trim();
-  if (!value || value.startsWith("{")) {
-    return false;
+async function loadAiStatus() {
+  try {
+    state.aiStatus = await apiRequest("/api/ai/status");
+  } catch (_error) {
+    state.aiStatus = {
+      enabled: false,
+      semantic_filter_enabled: false,
+      candidate_limit: 0,
+      model: ""
+    };
   }
+}
 
-  if (/(^|\s)(find|show|list|give|which|where|whose|assigned|works on|owner|participant|score|risk)(\s|$)/i.test(value)) {
-    return true;
+async function runCaseSearchWithProgress(inputValue) {
+  setBusy(true, "AI: analyzing your request...");
+  const timers = [
+    window.setTimeout(() => setBusy(true, "AI: reviewing visible cases..."), 500),
+    window.setTimeout(() => setBusy(true, "AI: selecting matching case IDs..."), 1500),
+    window.setTimeout(() => setBusy(true, "AI: finalizing ranked results..."), 2800)
+  ];
+
+  try {
+    return await apiRequest("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: inputValue,
+        page: 1,
+        page_size: state.pagination.cases.page_size,
+        sort_by: state.sort.cases.sortBy,
+        sort_dir: state.sort.cases.sortDir
+      })
+    });
+  } finally {
+    for (const timer of timers) {
+      window.clearTimeout(timer);
+    }
+    setBusy(false);
   }
-
-  if (/(greater than|less than|at least|at most|between|>=|<=|>|<)/i.test(value)) {
-    return true;
-  }
-
-  return value.split(/\s+/).length >= 6;
 }
 
 async function applyCaseSearchInput(rawValue) {
@@ -187,23 +227,21 @@ async function applyCaseSearchInput(rawValue) {
   state.search.cases = inputValue;
   state.pagination.cases.page = 1;
 
-  if (!inputValue || inputValue.startsWith("{") || !isLikelyAiCaseSearch(inputValue)) {
+  if (!inputValue || inputValue.startsWith("{")) {
     state.caseAiSearch = null;
     setAiSearchExplanation("");
     await refreshCurrentModel();
     return;
   }
 
-  const result = await withBusy("Running AI search...", async () => apiRequest("/api/ai/case-search", {
-    method: "POST",
-    body: JSON.stringify({
-      prompt: inputValue,
-      page: 1,
-      page_size: state.pagination.cases.page_size,
-      sort_by: state.sort.cases.sortBy,
-      sort_dir: state.sort.cases.sortDir
-    })
-  }));
+  if (!state.aiStatus.enabled) {
+    state.caseAiSearch = null;
+    setAiSearchExplanation("");
+    await refreshCurrentModel();
+    return;
+  }
+
+  const result = await runCaseSearchWithProgress(inputValue);
 
   state.caseAiSearch = result.ai;
   state.records.cases = result.items;
@@ -212,7 +250,8 @@ async function applyCaseSearchInput(rawValue) {
   renderList();
   renderPagination();
   updateHeader();
-  setStatus(`AI search applied${result.ai.explanation ? `: ${result.ai.explanation}` : "."}`);
+  const modeLabel = result.ai.mode === "semantic" ? "AI semantic filter" : "AI query plan";
+  setStatus(`${modeLabel} applied${result.ai.explanation ? `: ${result.ai.explanation}` : "."}`);
 }
 
 async function loadReferences() {
@@ -611,6 +650,7 @@ async function boot() {
   try {
     await apiRequest("/api/auth/me");
     registerEvents();
+    await loadAiStatus();
     await loadReferences();
     const directCaseMatch = window.location.pathname.match(/^\/cases\/(\d+)$/);
     if (directCaseMatch) {

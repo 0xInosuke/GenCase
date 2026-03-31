@@ -73,6 +73,21 @@ Output JSON shape:
 }
 `;
 
+const SEMANTIC_INTENT_GUIDE = `
+You analyze a natural-language GenCase search request before candidate selection.
+
+Business rules:
+- Summarize the user's intent clearly.
+- Extract the major filters or concepts that should matter during candidate selection.
+- Do not invent database fields or IDs.
+
+Output JSON shape:
+{
+  "summary": "short summary of the user's search intent",
+  "signals": ["risk score above 5", "replied by bob"]
+}
+`;
+
 function buildContextBlock(context = {}) {
   const lines = [];
 
@@ -210,6 +225,27 @@ function parseSemanticAiResponseBody(body, candidateIds) {
   };
 }
 
+function parseSemanticIntentResponseBody(body) {
+  const content = body?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("AI provider returned an empty response.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (_error) {
+    throw new Error("AI provider returned invalid JSON content.");
+  }
+
+  return {
+    summary: String(parsed.summary || "").trim(),
+    signals: Array.isArray(parsed.signals)
+      ? parsed.signals.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 12)
+      : []
+  };
+}
+
 async function interpretCaseSearchPrompt(prompt, context = {}) {
   const config = getAiConfig();
   const controller = new AbortController();
@@ -303,6 +339,8 @@ async function interpretSemanticCaseSearchPrompt(prompt, semanticContext = {}) {
 
 Visible case count: ${Number.isInteger(semanticContext.visibleCaseCount) ? semanticContext.visibleCaseCount : candidateSummaries.length}
 Candidate case count: ${candidateSummaries.length}
+Semantic intent summary: ${semanticContext.intent?.summary || ""}
+Semantic intent signals: ${Array.isArray(semanticContext.intent?.signals) ? semanticContext.intent.signals.join(", ") : ""}
 Candidate case summaries JSON:
 ${JSON.stringify(candidateSummaries)}`
           },
@@ -340,8 +378,65 @@ ${JSON.stringify(candidateSummaries)}`
   }
 }
 
+async function interpretSemanticIntentPrompt(prompt) {
+  const config = getAiConfig();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+
+  try {
+    const response = await fetch(config.apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: config.model,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: SEMANTIC_INTENT_GUIDE.trim()
+          },
+          {
+            role: "user",
+            content: String(prompt || "").trim()
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      const error = new Error(`AI provider request failed with status ${response.status}.`);
+      error.statusCode = 502;
+      error.details = details;
+      throw error;
+    }
+
+    const body = await response.json();
+    return parseSemanticIntentResponseBody(body);
+  } catch (error) {
+    if (error.name === "AbortError") {
+      error.statusCode = 504;
+      error.message = "AI provider request timed out.";
+    }
+
+    if (!error.statusCode) {
+      error.statusCode = 502;
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 module.exports = {
   interpretCaseSearchPrompt,
+  interpretSemanticIntentPrompt,
   interpretSemanticCaseSearchPrompt,
   validatePlan
 };

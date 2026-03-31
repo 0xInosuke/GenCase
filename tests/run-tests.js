@@ -121,17 +121,74 @@ async function startAiMockServer() {
 
     const parsedBody = rawBody ? JSON.parse(rawBody) : {};
     const prompt = String(parsedBody?.messages?.find((item) => item.role === "user")?.content || "").toLowerCase();
-    const systemPrompt = String(parsedBody?.messages?.find((item) => item.role === "system")?.content || "").toLowerCase();
+    const systemMessageContent = String(parsedBody?.messages?.find((item) => item.role === "system")?.content || "");
+    const systemPrompt = systemMessageContent.toLowerCase();
     const semanticMarker = "candidate case summaries json:\n";
     const semanticIndex = systemPrompt.indexOf(semanticMarker);
 
+    if (systemPrompt.includes("you analyze a natural-language gencase search request before candidate selection")) {
+      let summary = "General case search intent.";
+      let signals = [];
+
+      if (prompt.includes("risk score") && prompt.includes("alice replied")) {
+        summary = "Find cases with a risk score above 5 that Alice replied to.";
+        signals = ["risk score above 5", "replied by alice"];
+      } else if (prompt.includes("risk score") && prompt.includes("bob replied")) {
+        summary = "Find cases with a risk score above 5 that Bob replied to.";
+        signals = ["risk score above 5", "replied by bob"];
+      } else if (prompt.includes("security_review")) {
+        summary = "Find cases currently in the security_review stage.";
+        signals = ["stage security_review"];
+      } else if (prompt.includes("bob")) {
+        summary = "Find cases connected to Bob.";
+        signals = ["related to bob"];
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ summary, signals })
+            }
+          }
+        ]
+      }));
+      return;
+    }
+
     if (semanticIndex >= 0) {
-      const rawJson = parsedBody.messages.find((item) => item.role === "system")?.content?.slice(semanticIndex + semanticMarker.length) || "[]";
+      const rawJson = systemMessageContent.slice(semanticIndex + semanticMarker.length) || "[]";
       const candidates = JSON.parse(rawJson);
       let matchedCaseIds = [];
       let explanation = "Semantic filter found no matching cases.";
 
-      if (prompt.includes("risk score")) {
+      if (prompt.includes("risk score") && prompt.includes("alice replied")) {
+        matchedCaseIds = candidates
+          .filter((item) =>
+            Array.isArray(item.keyFacts)
+            && item.keyFacts.some((fact) => fact.path.endsWith("score") && Number(fact.value) > 5)
+            && Array.isArray(item.commentAuthors)
+            && item.commentAuthors.some((author) => String(author).toLowerCase().includes("alice"))
+          )
+          .map((item) => Number(item.id));
+        explanation = "Semantic filter matched cases with score above 5 and an Alice reply.";
+      } else if (prompt.includes("risk score") && prompt.includes("bob replied")) {
+        matchedCaseIds = candidates
+          .filter((item) =>
+            Array.isArray(item.keyFacts)
+            && item.keyFacts.some((fact) => fact.path.endsWith("score") && Number(fact.value) > 5)
+            && Array.isArray(item.commentAuthors)
+            && item.commentAuthors.some((author) => String(author).toLowerCase().includes("bob"))
+          )
+          .map((item) => Number(item.id));
+        explanation = "Semantic filter matched cases with score above 5 and a Bob reply.";
+      } else if (prompt.includes("security_review")) {
+        matchedCaseIds = candidates
+          .filter((item) => String(item.stage || "").toLowerCase() === "security_review")
+          .map((item) => Number(item.id));
+        explanation = "Semantic filter matched security_review stage cases.";
+      } else if (prompt.includes("risk score")) {
         matchedCaseIds = candidates
           .filter((item) => Array.isArray(item.keyFacts) && item.keyFacts.some((fact) => fact.path.endsWith("score") && Number(fact.value) > 5))
           .map((item) => Number(item.id));
@@ -312,6 +369,12 @@ async function main() {
     assert.ok(Number.isInteger(login.body.visible_case_count));
     assert.ok(login.body.visible_case_count >= 1);
     markTestCase("alice login succeeds");
+
+    const aiStatusInitial = await request("/api/ai/status");
+    assert.equal(aiStatusInitial.status, 200);
+    assert.equal(aiStatusInitial.body.enabled, true);
+    assert.equal(aiStatusInitial.body.semantic_filter_enabled, false);
+    markTestCase("ai status endpoint");
 
     const seededUsers = await request("/api/users?sort_by=id&sort_dir=asc&page=1&page_size=20");
     assert.equal(seededUsers.status, 200);
@@ -970,6 +1033,11 @@ async function main() {
     markTestCase("ai case search by comment author");
 
     process.env.AI_SEMANTIC_FILTER_ENABLED = "true";
+    const aiStatusSemantic = await request("/api/ai/status");
+    assert.equal(aiStatusSemantic.status, 200);
+    assert.equal(aiStatusSemantic.body.semantic_filter_enabled, true);
+    markTestCase("ai status semantic enabled");
+
     const aiSemanticSearch = await request("/api/ai/case-search", {
       method: "POST",
       body: JSON.stringify({
@@ -986,6 +1054,40 @@ async function main() {
     assert.ok(Array.isArray(aiSemanticSearch.body.ai.semantic.matched_case_ids));
     assert.ok(typeof aiSemanticSearch.body.ai.semantic.snapshot_fingerprint === "string");
     markTestCase("ai semantic filter search");
+
+    const aiSemanticCompositeSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "give me cases with risk score greater than 5 and alice replied",
+        page: 1,
+        page_size: 50,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiSemanticCompositeSearch.status, 200);
+    assert.equal(aiSemanticCompositeSearch.body.ai.mode, "semantic");
+    assert.ok(aiSemanticCompositeSearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
+    assert.equal(aiSemanticCompositeSearch.body.ai.semantic.intent.signals.includes("risk score above 5"), true);
+    assert.equal(aiSemanticCompositeSearch.body.ai.semantic.intent.signals.includes("replied by alice"), true);
+    markTestCase("ai semantic composite search");
+
+    const aiSemanticStageSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "show me security_review stage cases",
+        page: 1,
+        page_size: 50,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiSemanticStageSearch.status, 200);
+    assert.equal(aiSemanticStageSearch.body.ai.mode, "semantic");
+    assert.ok(aiSemanticStageSearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
+    assert.ok(aiSemanticStageSearch.body.items.every((item) => item.stage_code === "security_review"));
+    markTestCase("ai semantic stage search");
+
     process.env.AI_SEMANTIC_FILTER_ENABLED = "false";
 
     const aiLongPrompt = await request("/api/ai/case-search", {

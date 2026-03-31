@@ -4,6 +4,7 @@ const path = require("path");
 const logsDir = path.join(process.cwd(), "logs");
 const accessLogPath = path.join(logsDir, "access.log");
 const errorLogPath = path.join(logsDir, "error.log");
+const aiLogPath = path.join(logsDir, "ai.log");
 
 function ensureLogsDir() {
   if (!fs.existsSync(logsDir)) {
@@ -63,10 +64,18 @@ function logStartup(message) {
   appendLine(accessLogPath, line);
 }
 
+function logAiEvent(req, message, details = null) {
+  const line = `[ai] time=${formatTimestamp()} ip=${getRequestIp(req)} actor=${getActor(req)} ${message}`;
+  console.log(line);
+  appendLine(aiLogPath, details ? `${line}\n${details}\n` : line);
+}
+
 module.exports = {
   accessLogPath,
   errorLogPath,
+  aiLogPath,
   logAccess,
+  logAiEvent,
   logError,
   logStartup
 };

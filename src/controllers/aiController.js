@@ -1,9 +1,10 @@
 const { getAiConfig } = require("../config/env");
 const caseModel = require("../models/caseModel");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
-const { interpretCaseSearchPrompt, interpretSemanticCaseSearchPrompt, validatePlan } = require("../services/aiProviderService");
+const { interpretCaseSearchPrompt, interpretSemanticIntentPrompt, interpretSemanticCaseSearchPrompt, validatePlan } = require("../services/aiProviderService");
 const { runCaseSearchForUser, runCaseSearchOnCases, buildSearchContextFromCases } = require("../services/aiCaseSearchService");
-const { buildSemanticSearchContext } = require("../services/aiSemanticCaseSearchService");
+const { buildSemanticSearchContextFromCases } = require("../services/aiSemanticCaseSearchService");
+const { logAiEvent } = require("../utils/logger");
 
 const aiRequestBuckets = new Map();
 
@@ -46,6 +47,28 @@ function parseListOptions(body) {
 }
 
 module.exports = {
+  getStatus(_req, res, next) {
+    try {
+      const aiConfig = getAiConfig();
+      res.json({
+        enabled: true,
+        semantic_filter_enabled: aiConfig.semanticFilterEnabled,
+        candidate_limit: aiConfig.semanticCandidateLimit,
+        model: aiConfig.model
+      });
+    } catch (error) {
+      if (error.statusCode === 503) {
+        return res.json({
+          enabled: false,
+          semantic_filter_enabled: false,
+          candidate_limit: 0,
+          model: ""
+        });
+      }
+      return next(error);
+    }
+  },
+
   async runCaseSearch(req, res, next) {
     try {
       const options = parseListOptions(req.body || {});
@@ -64,58 +87,84 @@ module.exports = {
 
         enforceAiRateLimit(req.sessionUser.user_id);
         const visibleCases = await caseModel.listAllCasesForAi(req.sessionUser.user_id);
+        logAiEvent(req, `prompt_received visible_cases=${visibleCases.length} semantic_enabled=${aiConfig.semanticFilterEnabled}`, prompt);
 
         if (aiConfig.semanticFilterEnabled) {
-          const semanticContext = await buildSemanticSearchContext(
-            req.sessionUser.user_id,
-            prompt,
-            aiConfig.semanticCandidateLimit
-          );
-          const interpretedSemantic = await interpretSemanticCaseSearchPrompt(prompt, {
-            visibleCaseCount: visibleCases.length,
-            candidates: semanticContext.candidates
-          });
-          const matchedIdSet = new Set(interpretedSemantic.matchedCaseIds);
-          const semanticItems = visibleCases
-            .filter((item) => matchedIdSet.has(Number(item.id)))
-            .sort((left, right) => {
-              const leftIndex = interpretedSemantic.matchedCaseIds.indexOf(Number(left.id));
-              const rightIndex = interpretedSemantic.matchedCaseIds.indexOf(Number(right.id));
-              if (leftIndex !== rightIndex) {
-                return leftIndex - rightIndex;
-              }
-              return Number(left.id) - Number(right.id);
-            });
+          const intent = await interpretSemanticIntentPrompt(prompt);
+          logAiEvent(req, `semantic_intent summary="${intent.summary}" signals=${intent.signals.length}`);
 
-          if (semanticItems.length > 0) {
-            const totalCount = semanticItems.length;
-            const totalPages = Math.ceil(totalCount / options.pageSize);
-            const offset = (options.page - 1) * options.pageSize;
-            result = {
-              items: semanticItems.slice(offset, offset + options.pageSize),
-              pagination: {
-                page: options.page,
-                page_size: options.pageSize,
-                total_pages: totalPages,
-                total_count: totalCount
-              }
-            };
-            explanation = interpretedSemantic.explanation;
-            mode = "semantic";
-            semantic = {
-              matched_case_ids: interpretedSemantic.matchedCaseIds,
-              candidate_count: semanticContext.candidates.length,
-              snapshot_fingerprint: semanticContext.fingerprint
-            };
+          const semanticPassLimits = Array.from(new Set([
+            aiConfig.semanticCandidateLimit,
+            Math.min(Math.max(aiConfig.semanticCandidateLimit * 2, aiConfig.semanticCandidateLimit), visibleCases.length),
+            visibleCases.length
+          ])).filter((limit) => limit > 0);
+
+          for (const candidateLimit of semanticPassLimits) {
+            const semanticContext = buildSemanticSearchContextFromCases(
+              visibleCases,
+              req.sessionUser.user_id,
+              `${prompt} ${intent.summary} ${intent.signals.join(" ")}`.trim(),
+              candidateLimit
+            );
+            logAiEvent(
+              req,
+              `semantic_pass candidate_limit=${candidateLimit} candidate_count=${semanticContext.candidates.length} fingerprint=${semanticContext.fingerprint}`
+            );
+
+            const interpretedSemantic = await interpretSemanticCaseSearchPrompt(prompt, {
+              visibleCaseCount: visibleCases.length,
+              candidates: semanticContext.candidates,
+              intent
+            });
+            const matchedIdSet = new Set(interpretedSemantic.matchedCaseIds);
+            const semanticItems = visibleCases
+              .filter((item) => matchedIdSet.has(Number(item.id)))
+              .sort((left, right) => {
+                const leftIndex = interpretedSemantic.matchedCaseIds.indexOf(Number(left.id));
+                const rightIndex = interpretedSemantic.matchedCaseIds.indexOf(Number(right.id));
+                if (leftIndex !== rightIndex) {
+                  return leftIndex - rightIndex;
+                }
+                return Number(left.id) - Number(right.id);
+              });
+
+            logAiEvent(req, `semantic_result matched=${semanticItems.length} candidate_count=${semanticContext.candidates.length}`);
+
+            if (semanticItems.length > 0) {
+              const totalCount = semanticItems.length;
+              const totalPages = Math.ceil(totalCount / options.pageSize);
+              const offset = (options.page - 1) * options.pageSize;
+              result = {
+                items: semanticItems.slice(offset, offset + options.pageSize),
+                pagination: {
+                  page: options.page,
+                  page_size: options.pageSize,
+                  total_pages: totalPages,
+                  total_count: totalCount
+                }
+              };
+              explanation = interpretedSemantic.explanation;
+              mode = "semantic";
+              semantic = {
+                intent,
+                matched_case_ids: interpretedSemantic.matchedCaseIds,
+                candidate_count: semanticContext.candidates.length,
+                snapshot_fingerprint: semanticContext.fingerprint,
+                pass_candidate_limit: candidateLimit
+              };
+              break;
+            }
           }
         }
 
         if (!result) {
+          logAiEvent(req, "semantic_no_match_fallback_to_plan");
           const searchContext = buildSearchContextFromCases(visibleCases);
           const interpreted = await interpretCaseSearchPrompt(prompt, searchContext);
           explanation = interpreted.explanation;
           plan = interpreted.plan;
           result = runCaseSearchOnCases(visibleCases, plan, options);
+          logAiEvent(req, `plan_result matched=${result.pagination.total_count}`);
 
           if (result.pagination.total_count === 0 && searchContext.jsonPaths.length > 0) {
             const retry = await interpretCaseSearchPrompt(prompt, {
@@ -124,6 +173,7 @@ module.exports = {
               previousPlan: plan
             });
             const retryResult = runCaseSearchOnCases(visibleCases, retry.plan, options);
+            logAiEvent(req, `plan_retry_result matched=${retryResult.pagination.total_count}`);
             if (retryResult.pagination.total_count > 0) {
               explanation = retry.explanation || explanation;
               plan = retry.plan;

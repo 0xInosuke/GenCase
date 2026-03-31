@@ -46,8 +46,9 @@ Case visibility rules:
 - Case list search supports both plain text search and JSON condition search against `case_data`.
 - JSON condition search uses a JSON object such as `{"owner":"alice","severity":"high"}` and still only returns cases visible to the current user.
 - Case list now uses one unified search field for plain text, JSON condition search, and AI-assisted natural-language case search.
+- When AI is configured, non-JSON case searches now prefer AI first and report whether the result came from AI semantic filtering or AI plan mode.
 - Re-clicking the `Cases` navigation button resets case-list search state and reloads the full visible list.
-- Case list shows a busy indicator while AI search or record loading is in progress.
+- Case list shows staged busy indicators while AI search or record loading is in progress.
 - Case detail view supports one-click export to `.json` or `.md`, including case fields, `case_data`, and all visible comments with author, timestamp, and content.
 - Case detail also supports direct logged-in access by URL at `/cases/<id>`.
 
@@ -190,6 +191,7 @@ Cross-platform script rules:
 - `npm.cmd start` now writes request/activity logs to the console in an Apache-style line format.
 - Request and activity logs are persisted to `logs/access.log`.
 - Error logs with stack/message details are persisted to `logs/error.log`.
+- AI search flow details are persisted to `logs/ai.log`.
 - `case` update requests log start/deny/success events with user and case IDs.
 - Global API error middleware logs request method, path, actor identity, status code, and stack/message for faster debugging.
 

@@ -33,6 +33,12 @@ export function createInitialState() {
     selectedRecord: null,
     caseComments: [],
     caseAiSearch: null,
+    aiStatus: {
+      enabled: false,
+      semantic_filter_enabled: false,
+      candidate_limit: 0,
+      model: ""
+    },
     busy: false,
     busyMessage: "",
     auditRecords: [],

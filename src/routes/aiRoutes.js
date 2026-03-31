@@ -3,6 +3,7 @@ const aiController = require("../controllers/aiController");
 
 const router = express.Router();
 
+router.get("/status", aiController.getStatus);
 router.post("/case-search", aiController.runCaseSearch);
 
 module.exports = router;
