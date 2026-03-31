@@ -203,7 +203,7 @@ async function applyCaseSearchInput(rawValue) {
       sort_by: state.sort.cases.sortBy,
       sort_dir: state.sort.cases.sortDir
     })
-  });
+  }));
 
   state.caseAiSearch = result.ai;
   state.records.cases = result.items;
