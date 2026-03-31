@@ -2,10 +2,16 @@ const fs = require("fs");
 const path = require("path");
 
 let cachedConfig;
+let envLoaded = false;
 
 function loadEnvFile() {
+  if (envLoaded) {
+    return;
+  }
+
   const envPath = path.join(process.cwd(), ".env");
   if (!fs.existsSync(envPath)) {
+    envLoaded = true;
     return;
   }
 
@@ -27,6 +33,8 @@ function loadEnvFile() {
       process.env[key] = value;
     }
   }
+
+  envLoaded = true;
 }
 
 function requireValue(name) {
@@ -67,6 +75,29 @@ function getAppConfig() {
   return cachedConfig;
 }
 
+function getAiConfig() {
+  loadEnvFile();
+
+  const apiUrl = String(process.env.AI_API_URL || "").trim();
+  const apiKey = String(process.env.AI_API_KEY || "").trim();
+  const model = String(process.env.AI_MODEL || "").trim();
+  const timeoutMs = Number(process.env.AI_TIMEOUT_MS || 20000);
+
+  if (!apiUrl || !apiKey || !model) {
+    const error = new Error("AI search is not configured. Set AI_API_URL, AI_API_KEY, and AI_MODEL in .env.");
+    error.statusCode = 503;
+    throw error;
+  }
+
+  return {
+    apiUrl,
+    apiKey,
+    model,
+    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 20000
+  };
+}
+
 module.exports = {
-  getAppConfig
+  getAppConfig,
+  getAiConfig
 };

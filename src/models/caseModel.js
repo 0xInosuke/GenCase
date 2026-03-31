@@ -194,6 +194,28 @@ module.exports = {
     return buildPagedResult(result, options.page, options.pageSize);
   },
 
+  async listAllCasesForAi(userId) {
+    const result = await queryUser(
+      `SELECT
+          c.id,
+          c.workflow_id,
+          w.wf_name,
+          c.case_title,
+          c.stage_code,
+          c.case_data,
+          last_activity.display_name AS last_edited_by,
+          last_activity.timestamp AS last_edited_at,
+          c.created_at,
+          c.updated_at
+       ${CASE_FROM_WITH_ACTIVITY}
+       WHERE ${CASE_VISIBILITY_EXISTS}
+       ORDER BY c.id ASC`,
+      [userId]
+    );
+
+    return result.rows;
+  },
+
   getCaseByIdForUser: getOneForUser,
   getCaseByIdForApiKey: getOneForApiKey,
 

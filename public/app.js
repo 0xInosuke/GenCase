@@ -60,6 +60,7 @@ function toggleView(view) {
 function updateHeader() {
   const config = getConfig();
   const isCaseDetail = state.activeModel === "cases" && state.view === "detail" && state.selectedRecord;
+  const isCaseList = state.activeModel === "cases" && state.view === "list";
   document.getElementById("view-title").textContent = config.label;
   document.getElementById("view-label").textContent = state.view === "list" ? "List View" : state.view === "detail" ? "Detail View" : "Edit View";
   document.getElementById("search-input").placeholder = state.activeModel === "cases"
@@ -67,6 +68,7 @@ function updateHeader() {
     : "Search records";
   document.getElementById("export-json-button").classList.toggle("hidden", !isCaseDetail);
   document.getElementById("export-markdown-button").classList.toggle("hidden", !isCaseDetail);
+  document.getElementById("ai-search-button").classList.toggle("hidden", !isCaseList);
   document.querySelectorAll("#model-nav button").forEach((button) => {
     button.classList.toggle("active", button.dataset.model === state.activeModel);
   });
@@ -92,9 +94,43 @@ function buildListUrl(model) {
 }
 
 async function loadList(model = state.activeModel) {
+  if (model === "cases" && state.caseAiSearch?.plan) {
+    const result = await apiRequest("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        plan: state.caseAiSearch.plan,
+        explanation: state.caseAiSearch.explanation || "",
+        page: state.pagination.cases.page,
+        page_size: state.pagination.cases.page_size,
+        sort_by: state.sort.cases.sortBy,
+        sort_dir: state.sort.cases.sortDir
+      })
+    });
+    state.records.cases = result.items;
+    state.pagination.cases = result.pagination;
+    state.caseAiSearch = result.ai;
+    return;
+  }
+
   const result = await apiRequest(buildListUrl(model));
   state.records[model] = result.items;
   state.pagination[model] = result.pagination;
+}
+
+function setAiSearchExplanation(message) {
+  const explanationEl = document.getElementById("ai-search-explanation");
+  explanationEl.textContent = message;
+  explanationEl.classList.toggle("hidden", !message);
+}
+
+function toggleAiSearchModal(isOpen) {
+  const modal = document.getElementById("ai-search-modal");
+  modal.classList.toggle("hidden", !isOpen);
+  modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+  if (isOpen) {
+    document.getElementById("ai-search-input").focus();
+  }
 }
 
 async function loadReferences() {
@@ -259,6 +295,7 @@ async function refreshCurrentModel() {
 async function switchModel(model) {
   state.activeModel = model;
   state.selectedRecord = null;
+  state.caseAiSearch = null;
   clearStatus();
   document.getElementById("search-input").value = state.search[model];
   document.getElementById("page-size-select").value = String(state.pagination[model].page_size);
@@ -278,6 +315,10 @@ function registerEvents() {
   });
 
   document.getElementById("search-input").addEventListener("change", async (event) => {
+    if (state.activeModel === "cases") {
+      state.caseAiSearch = null;
+      setAiSearchExplanation("");
+    }
     state.search[state.activeModel] = event.target.value.trim();
     state.pagination[state.activeModel].page = 1;
     await refreshCurrentModel();
@@ -307,6 +348,57 @@ function registerEvents() {
 
   document.getElementById("page-toast-close").addEventListener("click", () => {
     clearStatus();
+  });
+
+  document.getElementById("ai-search-button").addEventListener("click", () => {
+    setAiSearchExplanation(state.caseAiSearch?.explanation || "");
+    document.getElementById("ai-search-input").value = state.caseAiSearch?.prompt || "";
+    toggleAiSearchModal(true);
+  });
+
+  document.getElementById("ai-search-close").addEventListener("click", () => {
+    toggleAiSearchModal(false);
+  });
+
+  document.getElementById("ai-search-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (state.activeModel !== "cases") {
+      return;
+    }
+
+    const prompt = String(document.getElementById("ai-search-input").value || "").trim();
+    if (!prompt) {
+      setStatus("AI search prompt is required.", true);
+      return;
+    }
+
+    try {
+      const result = await apiRequest("/api/ai/case-search", {
+        method: "POST",
+        body: JSON.stringify({
+          prompt,
+          page: 1,
+          page_size: state.pagination.cases.page_size,
+          sort_by: state.sort.cases.sortBy,
+          sort_dir: state.sort.cases.sortDir
+        })
+      });
+
+      state.caseAiSearch = result.ai;
+      state.records.cases = result.items;
+      state.pagination.cases = result.pagination;
+      state.search.cases = "";
+      document.getElementById("search-input").value = `AI: ${prompt}`;
+      setAiSearchExplanation(result.ai.explanation || "");
+      renderList();
+      renderPagination();
+      updateHeader();
+      toggleAiSearchModal(false);
+      setStatus(`AI search applied${result.ai.explanation ? `: ${result.ai.explanation}` : "."}`);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
   });
 
   document.getElementById("create-button").addEventListener("click", async () => {

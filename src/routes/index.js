@@ -6,6 +6,7 @@ const workflowRoutes = require("./workflowRoutes");
 const caseRoutes = require("./caseRoutes");
 const commentRoutes = require("./commentRoutes");
 const auditRoutes = require("./auditRoutes");
+const aiRoutes = require("./aiRoutes");
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use("/workflows", workflowRoutes);
 router.use("/cases", caseRoutes);
 router.use("/comments", commentRoutes);
 router.use("/audits", auditRoutes);
+router.use("/ai", aiRoutes);
 
 module.exports = router;

@@ -1,9 +1,12 @@
 const assert = require("node:assert/strict");
+const { createServer } = require("node:http");
 const app = require("../src/app");
 const { queryUser } = require("../src/config/database");
 
 let server;
 let baseUrl;
+let aiMockServer;
+let aiMockBaseUrl = "";
 let authCookie = "";
 const externalApiKey = "key1243456756756";
 let testCaseCounter = 0;
@@ -109,7 +112,81 @@ async function request(path, options = {}) {
   };
 }
 
+async function startAiMockServer() {
+  aiMockServer = createServer(async (req, res) => {
+    let rawBody = "";
+    for await (const chunk of req) {
+      rawBody += chunk;
+    }
+
+    const parsedBody = rawBody ? JSON.parse(rawBody) : {};
+    const prompt = String(parsedBody?.messages?.find((item) => item.role === "user")?.content || "").toLowerCase();
+
+    let payload;
+    if (prompt.includes("risk score")) {
+      payload = {
+        explanation: "Find visible cases whose risk score is greater than 5.",
+        plan: {
+          match: "and",
+          conditions: [
+            { field: "case_data.metadata.score", operator: "gt", value: 5 }
+          ]
+        }
+      };
+    } else if (prompt.includes("bob")) {
+      payload = {
+        explanation: "Find visible cases connected to Bob.",
+        plan: {
+          match: "or",
+          conditions: [
+            { field: "case_data.owner", operator: "eq", value: "bob" },
+            { field: "case_data.assignee", operator: "eq", value: "bob" },
+            { field: "case_data.assigned_to", operator: "eq", value: "bob" },
+            { field: "case_data.participants", operator: "contains", value: "bob" }
+          ]
+        }
+      };
+    } else {
+      payload = {
+        explanation: "Fallback search by case title.",
+        plan: {
+          match: "and",
+          conditions: [
+            { field: "case_title", operator: "contains", value: "case" }
+          ]
+        }
+      };
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify(payload)
+          }
+        }
+      ]
+    }));
+  });
+
+  await new Promise((resolve) => {
+    aiMockServer.listen(0, "127.0.0.1", () => {
+      const address = aiMockServer.address();
+      aiMockBaseUrl = `http://127.0.0.1:${address.port}/v1/chat/completions`;
+      resolve();
+    });
+  });
+
+  process.env.AI_API_URL = aiMockBaseUrl;
+  process.env.AI_API_KEY = "test-ai-key";
+  process.env.AI_MODEL = "test-ai-model";
+  process.env.AI_TIMEOUT_MS = "5000";
+}
+
 async function main() {
+  await startAiMockServer();
+
   await new Promise((resolve) => {
     server = app.listen(0, "127.0.0.1", () => {
       const address = server.address();
@@ -718,6 +795,52 @@ async function main() {
     assert.ok(caseAudit.body.some((item) => item.change_type === "DATA_CHANGE"));
     markTestCase("case data update audit");
 
+    const aiRiskSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "give me all cases that risk score greater than 5",
+        page: 1,
+        page_size: 50,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiRiskSearch.status, 200);
+    assert.equal(aiRiskSearch.body.ai.plan.conditions[0].field, "case_data.metadata.score");
+    assert.ok(aiRiskSearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
+    assert.ok(aiRiskSearch.body.items.every((item) => Number(item.case_data?.metadata?.score || 0) > 5));
+    markTestCase("ai case search by risk score");
+
+    const aiBobSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "list all cases assigned to bob or bob works on",
+        page: 1,
+        page_size: 50,
+        sort_by: "last_edited_at",
+        sort_dir: "desc"
+      })
+    });
+    assert.equal(aiBobSearch.status, 200);
+    assert.equal(aiBobSearch.body.ai.plan.match, "or");
+    assert.ok(aiBobSearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
+    markTestCase("ai case search by bob relationship");
+
+    const aiPlanReplay = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        plan: aiBobSearch.body.ai.plan,
+        page: 1,
+        page_size: 5,
+        sort_by: "case_title",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiPlanReplay.status, 200);
+    assert.ok(aiPlanReplay.body.pagination.total_count >= 1);
+    assert.ok(aiPlanReplay.body.items.length <= 5);
+    markTestCase("ai case search plan replay");
+
     const deleteUserGroup = await request(`/api/user-groups/${createdUserGroupId}`, {
       method: "DELETE"
     });
@@ -848,15 +971,29 @@ async function main() {
 
     console.log(`All integration tests passed. Total test cases: ${testCaseCounter}`);
   } finally {
-    await new Promise((resolve, reject) => {
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve();
+    if (server) {
+      await new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
       });
-    });
+    }
+
+    if (aiMockServer) {
+      await new Promise((resolve, reject) => {
+        aiMockServer.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
   }
 }
 

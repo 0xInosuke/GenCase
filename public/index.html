@@ -43,6 +43,9 @@
             Search
             <input id="search-input" placeholder="Search records">
           </label>
+          <div class="toolbar-actions">
+            <button type="button" id="ai-search-button" class="secondary hidden">AI Search</button>
+          </div>
           <label class="toolbar-field">
             Page Size
             <select id="page-size-select">
@@ -112,6 +115,33 @@
       </section>
     </section>
   </main>
+
+  <section id="ai-search-modal" class="modal-shell hidden" aria-hidden="true">
+    <div class="modal-card">
+      <div class="detail-header">
+        <div>
+          <p class="workspace-label">AI Search</p>
+          <h3>Describe the cases you need</h3>
+        </div>
+        <button type="button" id="ai-search-close" class="secondary compact">Close</button>
+      </div>
+      <form id="ai-search-form" class="form">
+        <label>
+          Natural Language Query
+          <textarea
+            id="ai-search-input"
+            rows="5"
+            required
+            placeholder='For example: give me all cases that risk score greater than 5'
+          ></textarea>
+        </label>
+        <p id="ai-search-explanation" class="modal-note hidden"></p>
+        <div class="form-actions">
+          <button type="submit">Run AI Search</button>
+        </div>
+      </form>
+    </div>
+  </section>
 
   <script type="module" src="/app.js"></script>
 </body>

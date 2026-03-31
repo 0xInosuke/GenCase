@@ -32,6 +32,7 @@ export function createInitialState() {
     },
     selectedRecord: null,
     caseComments: [],
+    caseAiSearch: null,
     auditRecords: [],
     auditExpanded: true,
     referenceData: {
