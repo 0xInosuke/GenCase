@@ -167,6 +167,17 @@ async function startAiMockServer() {
           ]
         }
       };
+    } else if (prompt.includes("alice replied")) {
+      payload = {
+        explanation: "Find cases where Alice added a reply comment.",
+        plan: {
+          match: "or",
+          conditions: [
+            { field: "comment_authors", operator: "contains", value: "alice chen" },
+            { field: "comment_user_names", operator: "contains", value: "alice" }
+          ]
+        }
+      };
     } else {
       payload = {
         explanation: "Fallback search by case title.",
@@ -302,6 +313,11 @@ async function main() {
     assert.ok(aliceCaseExport.body.comments.some((item) => item.author === "Alice Chen"));
     assert.ok(typeof aliceCaseExport.body.exported_at === "string");
     markTestCase("alice case export");
+
+    const aliceDirectCasePage = await request(`/cases/${referenceCaseId}`);
+    assert.equal(aliceDirectCasePage.status, 200);
+    assert.ok(String(aliceDirectCasePage.body).includes("GenCase Admin"));
+    markTestCase("case detail route serves app shell");
 
     const invalidExternalAuth = await requestExternal("/external-api/cases", { apiKey: "invalid-key" });
     assert.equal(invalidExternalAuth.status, 401);
@@ -886,6 +902,21 @@ async function main() {
     assert.ok(aiRetrySearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
     assert.equal(aiRetrySearch.body.ai.plan.conditions[0].field, "case_data.metadata.score");
     markTestCase("ai case search retry after zero results");
+
+    const aiReplySearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "all cases alice replied",
+        page: 1,
+        page_size: 50,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiReplySearch.status, 200);
+    assert.ok(aiReplySearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
+    assert.ok(["comment_authors", "comment_user_names"].includes(aiReplySearch.body.ai.plan.conditions[0].field));
+    markTestCase("ai case search by comment author");
 
     const aiLongPrompt = await request("/api/ai/case-search", {
       method: "POST",

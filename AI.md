@@ -2,7 +2,7 @@
 
 This project includes an independent AI-assisted case search module for the case list page.
 
-The module does not change the existing database schema or the normal CRUD/search behavior. It adds a separate backend route and frontend dialog that convert natural-language requests into a structured case-search plan.
+The module does not change the existing database schema or the normal CRUD/search behavior. It extends the unified case-list search field so a user can type natural language and GenCase converts that request into a structured case-search plan.
 
 ## Configuration
 
@@ -28,17 +28,24 @@ These settings are independent from the main database and app configuration.
    - normal text search
    - JSON condition search
    - AI-assisted natural-language search
-3. The user can enter a natural-language request such as:
+3. While the AI request is running, the UI shows a busy indicator so the user can tell the search is still in progress.
+4. The user can enter a natural-language request such as:
    - `give me all cases that risk score greater than 5`
    - `list all cases assigned to bob or bob works on`
-4. The backend sends the prompt plus a compact GenCase search design guide and observed visible-case JSON paths to the configured LLM.
-5. The LLM must return strict JSON containing:
+   - `all cases alice replied`
+5. The backend sends the prompt plus a compact GenCase search design guide and observed visible-case context to the configured LLM.
+6. Visible-case context may include:
+   - observed workflow names
+   - observed stage codes
+   - observed `case_data` JSON paths
+   - observed comment authors and user names
+7. The LLM must return strict JSON containing:
    - a short `explanation`
    - a structured `plan`
-6. The GenCase AI module validates the plan.
-7. The validated plan is executed locally against the current user's visible cases only.
-8. If the first AI plan returns zero results, GenCase retries once with a broader context prompt based on the visible JSON paths.
-9. Results are returned to the frontend using the same pagination and sorting style as the normal case list.
+8. The GenCase AI module validates the plan.
+9. The validated plan is executed locally against the current user's visible cases only.
+10. If the first AI plan returns zero results, GenCase retries once with a broader context prompt based on the visible-case context.
+11. Results are returned to the frontend using the same pagination and sorting style as the normal case list.
 
 ## Supported Search Plan
 
@@ -47,6 +54,10 @@ Allowed fields:
 - `case_title`
 - `wf_name`
 - `stage_code`
+- `last_edited_by`
+- `comment_authors`
+- `comment_user_names`
+- `comment_contents`
 - `case_data.<json_path>`
 
 Allowed operators:
@@ -152,6 +163,7 @@ Natural-language prompts worth testing:
 - `give me all cases that risk score greater than 5`
 - `list all cases assigned to bob or bob works on`
 - `show all draft cases in onboarding workflow`
+- `all cases alice replied`
 - `find cases where owner is alice`
 - `find cases where metadata.score is at least 80`
 - `show cases with participants including bob`
@@ -176,6 +188,16 @@ Expected structured-plan examples:
     { "field": "case_data.assignee", "operator": "eq", "value": "bob" },
     { "field": "case_data.assigned_to", "operator": "eq", "value": "bob" },
     { "field": "case_data.participants", "operator": "contains", "value": "bob" }
+  ]
+}
+```
+
+```json
+{
+  "match": "or",
+  "conditions": [
+    { "field": "comment_authors", "operator": "contains", "value": "alice chen" },
+    { "field": "comment_user_names", "operator": "contains", "value": "alice" }
   ]
 }
 ```

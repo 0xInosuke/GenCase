@@ -19,6 +19,22 @@ import { renderEditFormView } from "./components/editFormView.js";
 const modelConfigs = createModelConfigs(parseJsonInput);
 const state = createInitialState();
 
+function setBusy(isBusy, message = "Loading...") {
+  state.busy = isBusy;
+  state.busyMessage = message;
+  document.getElementById("page-busy-message").textContent = message;
+  document.getElementById("page-busy").classList.toggle("hidden", !isBusy);
+}
+
+async function withBusy(message, action) {
+  setBusy(true, message);
+  try {
+    return await action();
+  } finally {
+    setBusy(false);
+  }
+}
+
 function setStatus(message, isError = false) {
   const el = document.getElementById("page-toast");
   document.getElementById("page-toast-message").textContent = message;
@@ -43,6 +59,16 @@ function clearStatus() {
   if (state.toastTimer) {
     window.clearTimeout(state.toastTimer);
     state.toastTimer = null;
+  }
+}
+
+function updateBrowserLocation() {
+  const nextPath = state.activeModel === "cases" && state.view === "detail" && state.selectedRecord
+    ? `/cases/${state.selectedRecord.id}`
+    : "/";
+
+  if (`${window.location.pathname}${window.location.search}` !== nextPath) {
+    window.history.pushState({}, "", nextPath);
   }
 }
 
@@ -168,7 +194,7 @@ async function applyCaseSearchInput(rawValue) {
     return;
   }
 
-  const result = await apiRequest("/api/ai/case-search", {
+  const result = await withBusy("Running AI search...", async () => apiRequest("/api/ai/case-search", {
     method: "POST",
     body: JSON.stringify({
       prompt: inputValue,
@@ -326,32 +352,54 @@ function renderEditForm(mode) {
 
 async function openDetail(id) {
   const config = getConfig();
-  state.selectedRecord = await apiRequest(`${config.endpoint}/${id}`);
-  state.auditExpanded = false;
-  await loadAuditRecords(config.targetType, state.selectedRecord.id);
-  if (state.activeModel === "cases") {
-    await loadCaseComments(state.selectedRecord.id);
-  } else {
-    state.caseComments = [];
-  }
+  await withBusy("Loading record...", async () => {
+    state.selectedRecord = await apiRequest(`${config.endpoint}/${id}`);
+    state.auditExpanded = false;
+    await loadAuditRecords(config.targetType, state.selectedRecord.id);
+    if (state.activeModel === "cases") {
+      await loadCaseComments(state.selectedRecord.id);
+    } else {
+      state.caseComments = [];
+    }
+  });
   renderDetail();
   renderCaseComments();
   renderAuditRecords();
   toggleView("detail");
   updateHeader();
+  updateBrowserLocation();
 }
 
 async function refreshCurrentModel() {
-  await loadList(state.activeModel);
+  await withBusy("Loading records...", async () => {
+    await loadList(state.activeModel);
+  });
   renderList();
   renderPagination();
   updateHeader();
 }
 
+function resetCaseSearchState(clearInput = false) {
+  state.caseAiSearch = null;
+  state.search.cases = "";
+  state.pagination.cases.page = 1;
+  setAiSearchExplanation("");
+  if (clearInput) {
+    document.getElementById("search-input").value = "";
+  }
+}
+
 async function switchModel(model) {
+  const isSameModel = state.activeModel === model;
   state.activeModel = model;
   state.selectedRecord = null;
-  state.caseAiSearch = null;
+  if (model === "cases") {
+    if (isSameModel) {
+      resetCaseSearchState(true);
+    } else {
+      state.caseAiSearch = null;
+    }
+  }
   clearStatus();
   document.getElementById("search-input").value = state.search[model];
   document.getElementById("page-size-select").value = String(state.pagination[model].page_size);
@@ -361,6 +409,7 @@ async function switchModel(model) {
   renderAuditRecords();
   toggleView("list");
   await refreshCurrentModel();
+  updateBrowserLocation();
 }
 
 function registerEvents() {
@@ -430,6 +479,7 @@ function registerEvents() {
     clearStatus();
     toggleView("list");
     updateHeader();
+    updateBrowserLocation();
   });
 
   document.getElementById("page-toast-close").addEventListener("click", () => {
@@ -482,6 +532,7 @@ function registerEvents() {
       toggleView("list");
       await refreshCurrentModel();
       setStatus(`${config.label.slice(0, -1) || config.label} deleted.`);
+      updateBrowserLocation();
     } catch (error) {
       setStatus(error.message, true);
     }
@@ -561,7 +612,16 @@ async function boot() {
     await apiRequest("/api/auth/me");
     registerEvents();
     await loadReferences();
-    await switchModel("users");
+    const directCaseMatch = window.location.pathname.match(/^\/cases\/(\d+)$/);
+    if (directCaseMatch) {
+      state.activeModel = "cases";
+      document.getElementById("search-input").value = state.search.cases;
+      document.getElementById("page-size-select").value = String(state.pagination.cases.page_size);
+      await refreshCurrentModel();
+      await openDetail(Number(directCaseMatch[1]));
+    } else {
+      await switchModel("users");
+    }
     setStatus("Data loaded.");
   } catch (error) {
     setStatus(error.message, true);

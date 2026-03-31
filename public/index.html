@@ -39,7 +39,7 @@
 
       <section class="panel" id="list-view">
         <div class="toolbar">
-          <label class="toolbar-field">
+          <label class="toolbar-field toolbar-field--search">
             Search
             <input id="search-input" placeholder="Search records">
             <span id="search-mode-pill" class="search-mode-pill hidden"></span>
@@ -114,6 +114,10 @@
       </section>
     </section>
   </main>
+  <section id="page-busy" class="page-busy hidden" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <span id="page-busy-message">Loading...</span>
+  </section>
 
   <script type="module" src="/app.js"></script>
 </body>

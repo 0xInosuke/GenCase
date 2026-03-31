@@ -219,6 +219,10 @@ button.compact {
   font-size: 14px;
 }
 
+.toolbar-field--search {
+  flex: 1 1 640px;
+}
+
 input,
 select,
 textarea {
@@ -282,8 +286,39 @@ textarea {
   line-height: 1.4;
 }
 
+.page-busy {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 36px rgba(20, 43, 61, 0.16);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(46, 111, 158, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .toolbar input {
-  min-width: 260px;
+  min-width: 520px;
 }
 
 table {

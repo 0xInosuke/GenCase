@@ -3,7 +3,11 @@ const { getAiConfig } = require("../config/env");
 const ALLOWED_FIELDS = new Set([
   "case_title",
   "wf_name",
-  "stage_code"
+  "stage_code",
+  "last_edited_by",
+  "comment_authors",
+  "comment_user_names",
+  "comment_contents"
 ]);
 
 const ALLOWED_OPERATORS = new Set([
@@ -23,7 +27,7 @@ Business rules:
 - Search only applies to cases already visible to the logged-in user.
 - Do not generate SQL.
 - Do not invent new fields or actions.
-- Supported top-level fields: case_title, wf_name, stage_code.
+- Supported top-level fields: case_title, wf_name, stage_code, last_edited_by, comment_authors, comment_user_names, comment_contents.
 - JSON fields must use case_data.<path>, for example case_data.owner or case_data.metadata.score.
 - Supported operators: eq, contains, gt, gte, lt, lte, in.
 - Use contains for text fragments or array membership checks.
@@ -48,6 +52,8 @@ Examples:
   => case_data.metadata.score gt 5
 - "list all cases assigned to bob or bob works on"
   => or over case_data.owner, case_data.assignee, case_data.assigned_to, case_data.participants
+- "all cases alice replied"
+  => comment_authors contains "alice" or comment_user_names contains "alice"
 `;
 
 function buildContextBlock(context = {}) {
@@ -63,6 +69,10 @@ function buildContextBlock(context = {}) {
 
   if (Array.isArray(context.stageCodes) && context.stageCodes.length > 0) {
     lines.push(`Visible stage codes: ${context.stageCodes.join(", ")}`);
+  }
+
+  if (Array.isArray(context.commentAuthors) && context.commentAuthors.length > 0) {
+    lines.push(`Observed comment authors: ${context.commentAuthors.join(", ")}`);
   }
 
   if (Array.isArray(context.jsonPaths) && context.jsonPaths.length > 0) {

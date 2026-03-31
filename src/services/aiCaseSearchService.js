@@ -26,7 +26,15 @@ function collectJsonPathsFromValue(value, currentPath, collector) {
 }
 
 function getFieldValue(record, field) {
-  if (field === "case_title" || field === "wf_name" || field === "stage_code") {
+  if (
+    field === "case_title"
+    || field === "wf_name"
+    || field === "stage_code"
+    || field === "last_edited_by"
+    || field === "comment_authors"
+    || field === "comment_user_names"
+    || field === "comment_contents"
+  ) {
     return record[field];
   }
 
@@ -190,6 +198,7 @@ function buildSearchContextFromCases(visibleCases) {
   const workflowNames = new Set();
   const stageCodes = new Set();
   const jsonPaths = new Set();
+  const commentAuthors = new Set();
 
   for (const item of visibleCases) {
     if (item.wf_name) {
@@ -198,6 +207,16 @@ function buildSearchContextFromCases(visibleCases) {
     if (item.stage_code) {
       stageCodes.add(String(item.stage_code));
     }
+    for (const author of item.comment_authors || []) {
+      if (author) {
+        commentAuthors.add(String(author));
+      }
+    }
+    for (const userName of item.comment_user_names || []) {
+      if (userName) {
+        commentAuthors.add(String(userName));
+      }
+    }
     collectJsonPathsFromValue(item.case_data, "", jsonPaths);
   }
 
@@ -205,6 +224,7 @@ function buildSearchContextFromCases(visibleCases) {
     visibleCaseCount: visibleCases.length,
     workflowNames: Array.from(workflowNames).sort((left, right) => left.localeCompare(right)).slice(0, 20),
     stageCodes: Array.from(stageCodes).sort((left, right) => left.localeCompare(right)).slice(0, 20),
+    commentAuthors: Array.from(commentAuthors).sort((left, right) => left.localeCompare(right)).slice(0, 30),
     jsonPaths: Array.from(jsonPaths).sort((left, right) => left.localeCompare(right)).slice(0, 80)
   };
 }

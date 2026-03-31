@@ -20,10 +20,24 @@ const CASE_LAST_ACTIVITY_JOIN = `
   ) last_activity ON TRUE
 `;
 
+const CASE_COMMENT_ACTIVITY_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT
+      ARRAY_REMOVE(ARRAY_AGG(DISTINCT LOWER(u.display_name)), NULL) AS comment_authors,
+      ARRAY_REMOVE(ARRAY_AGG(DISTINCT LOWER(u.user_name)), NULL) AS comment_user_names,
+      ARRAY_REMOVE(ARRAY_AGG(cmt.content), NULL) AS comment_contents
+    FROM tb_comments cmt
+    INNER JOIN tb_user u ON u.id = cmt.user_id
+    WHERE cmt.case_id = c.id
+      AND cmt.status_code = 'ACT'
+  ) comment_activity ON TRUE
+`;
+
 const CASE_FROM_WITH_ACTIVITY = `
   FROM tb_case c
   INNER JOIN tb_workflow w ON w.id = c.workflow_id
   ${CASE_LAST_ACTIVITY_JOIN}
+  ${CASE_COMMENT_ACTIVITY_JOIN}
 `;
 
 const CASE_DETAIL_SELECT = `
@@ -34,6 +48,9 @@ const CASE_DETAIL_SELECT = `
       c.case_title,
       c.stage_code,
       c.case_data,
+      comment_activity.comment_authors,
+      comment_activity.comment_user_names,
+      comment_activity.comment_contents,
       last_activity.display_name AS last_edited_by,
       last_activity.timestamp AS last_edited_at,
       c.created_at,
@@ -137,6 +154,9 @@ module.exports = {
           c.case_title,
           c.stage_code,
           c.case_data,
+          comment_activity.comment_authors,
+          comment_activity.comment_user_names,
+          comment_activity.comment_contents,
           last_activity.display_name AS last_edited_by,
           last_activity.timestamp AS last_edited_at,
           c.created_at,
@@ -171,6 +191,9 @@ module.exports = {
           c.case_title,
           c.stage_code,
           c.case_data,
+          comment_activity.comment_authors,
+          comment_activity.comment_user_names,
+          comment_activity.comment_contents,
           last_activity.display_name AS last_edited_by,
           last_activity.timestamp AS last_edited_at,
           c.created_at,
@@ -203,6 +226,9 @@ module.exports = {
           c.case_title,
           c.stage_code,
           c.case_data,
+          comment_activity.comment_authors,
+          comment_activity.comment_user_names,
+          comment_activity.comment_contents,
           last_activity.display_name AS last_edited_by,
           last_activity.timestamp AS last_edited_at,
           c.created_at,
