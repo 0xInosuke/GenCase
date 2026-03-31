@@ -60,15 +60,19 @@ function toggleView(view) {
 function updateHeader() {
   const config = getConfig();
   const isCaseDetail = state.activeModel === "cases" && state.view === "detail" && state.selectedRecord;
-  const isCaseList = state.activeModel === "cases" && state.view === "list";
+  const hasAiSearch = state.activeModel === "cases" && state.caseAiSearch?.explanation;
   document.getElementById("view-title").textContent = config.label;
   document.getElementById("view-label").textContent = state.view === "list" ? "List View" : state.view === "detail" ? "Detail View" : "Edit View";
   document.getElementById("search-input").placeholder = state.activeModel === "cases"
-    ? 'Search text or JSON, for example {"owner":"alice"}'
+    ? 'Search keywords, JSON, or natural language, for example give me all cases with score greater than 5'
     : "Search records";
+  if (hasAiSearch) {
+    setAiSearchExplanation(state.caseAiSearch.explanation);
+  } else {
+    setAiSearchExplanation("");
+  }
   document.getElementById("export-json-button").classList.toggle("hidden", !isCaseDetail);
   document.getElementById("export-markdown-button").classList.toggle("hidden", !isCaseDetail);
-  document.getElementById("ai-search-button").classList.toggle("hidden", !isCaseList);
   document.querySelectorAll("#model-nav button").forEach((button) => {
     button.classList.toggle("active", button.dataset.model === state.activeModel);
   });
@@ -118,19 +122,71 @@ async function loadList(model = state.activeModel) {
 }
 
 function setAiSearchExplanation(message) {
-  const explanationEl = document.getElementById("ai-search-explanation");
-  explanationEl.textContent = message;
-  explanationEl.classList.toggle("hidden", !message);
+  const explanationEl = document.getElementById("search-help-text");
+  const modePillEl = document.getElementById("search-mode-pill");
+
+  if (message) {
+    explanationEl.textContent = message;
+    modePillEl.textContent = "AI Search";
+    modePillEl.classList.remove("hidden");
+    return;
+  }
+
+  modePillEl.textContent = "";
+  modePillEl.classList.add("hidden");
+  explanationEl.textContent = state.activeModel === "cases"
+    ? "Cases support plain text, JSON condition search, and natural-language AI search in the same field."
+    : "";
 }
 
-function toggleAiSearchModal(isOpen) {
-  const modal = document.getElementById("ai-search-modal");
-  modal.classList.toggle("hidden", !isOpen);
-  modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
-
-  if (isOpen) {
-    document.getElementById("ai-search-input").focus();
+function isLikelyAiCaseSearch(inputValue) {
+  const value = String(inputValue || "").trim();
+  if (!value || value.startsWith("{")) {
+    return false;
   }
+
+  if (/(^|\s)(find|show|list|give|which|where|whose|assigned|works on|owner|participant|score|risk)(\s|$)/i.test(value)) {
+    return true;
+  }
+
+  if (/(greater than|less than|at least|at most|between|>=|<=|>|<)/i.test(value)) {
+    return true;
+  }
+
+  return value.split(/\s+/).length >= 6;
+}
+
+async function applyCaseSearchInput(rawValue) {
+  const inputValue = String(rawValue || "").trim();
+  state.search.cases = inputValue;
+  state.pagination.cases.page = 1;
+
+  if (!inputValue || inputValue.startsWith("{") || !isLikelyAiCaseSearch(inputValue)) {
+    state.caseAiSearch = null;
+    setAiSearchExplanation("");
+    await refreshCurrentModel();
+    return;
+  }
+
+  const result = await apiRequest("/api/ai/case-search", {
+    method: "POST",
+    body: JSON.stringify({
+      prompt: inputValue,
+      page: 1,
+      page_size: state.pagination.cases.page_size,
+      sort_by: state.sort.cases.sortBy,
+      sort_dir: state.sort.cases.sortDir
+    })
+  });
+
+  state.caseAiSearch = result.ai;
+  state.records.cases = result.items;
+  state.pagination.cases = result.pagination;
+  setAiSearchExplanation(result.ai.explanation || "");
+  renderList();
+  renderPagination();
+  updateHeader();
+  setStatus(`AI search applied${result.ai.explanation ? `: ${result.ai.explanation}` : "."}`);
 }
 
 async function loadReferences() {
@@ -316,12 +372,42 @@ function registerEvents() {
 
   document.getElementById("search-input").addEventListener("change", async (event) => {
     if (state.activeModel === "cases") {
-      state.caseAiSearch = null;
-      setAiSearchExplanation("");
+      try {
+        await applyCaseSearchInput(event.target.value);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+      return;
     }
     state.search[state.activeModel] = event.target.value.trim();
     state.pagination[state.activeModel].page = 1;
     await refreshCurrentModel();
+  });
+
+  document.getElementById("search-input").addEventListener("keydown", async (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    const inputValue = event.target.value;
+
+    if (state.activeModel === "cases") {
+      try {
+        await applyCaseSearchInput(inputValue);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+      return;
+    }
+
+    state.search[state.activeModel] = String(inputValue || "").trim();
+    state.pagination[state.activeModel].page = 1;
+    try {
+      await refreshCurrentModel();
+    } catch (error) {
+      setStatus(error.message, true);
+    }
   });
 
   document.getElementById("page-size-select").addEventListener("change", async (event) => {
@@ -348,57 +434,6 @@ function registerEvents() {
 
   document.getElementById("page-toast-close").addEventListener("click", () => {
     clearStatus();
-  });
-
-  document.getElementById("ai-search-button").addEventListener("click", () => {
-    setAiSearchExplanation(state.caseAiSearch?.explanation || "");
-    document.getElementById("ai-search-input").value = state.caseAiSearch?.prompt || "";
-    toggleAiSearchModal(true);
-  });
-
-  document.getElementById("ai-search-close").addEventListener("click", () => {
-    toggleAiSearchModal(false);
-  });
-
-  document.getElementById("ai-search-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    if (state.activeModel !== "cases") {
-      return;
-    }
-
-    const prompt = String(document.getElementById("ai-search-input").value || "").trim();
-    if (!prompt) {
-      setStatus("AI search prompt is required.", true);
-      return;
-    }
-
-    try {
-      const result = await apiRequest("/api/ai/case-search", {
-        method: "POST",
-        body: JSON.stringify({
-          prompt,
-          page: 1,
-          page_size: state.pagination.cases.page_size,
-          sort_by: state.sort.cases.sortBy,
-          sort_dir: state.sort.cases.sortDir
-        })
-      });
-
-      state.caseAiSearch = result.ai;
-      state.records.cases = result.items;
-      state.pagination.cases = result.pagination;
-      state.search.cases = "";
-      document.getElementById("search-input").value = `AI: ${prompt}`;
-      setAiSearchExplanation(result.ai.explanation || "");
-      renderList();
-      renderPagination();
-      updateHeader();
-      toggleAiSearchModal(false);
-      setStatus(`AI search applied${result.ai.explanation ? `: ${result.ai.explanation}` : "."}`);
-    } catch (error) {
-      setStatus(error.message, true);
-    }
   });
 
   document.getElementById("create-button").addEventListener("click", async () => {

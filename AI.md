@@ -23,17 +23,22 @@ These settings are independent from the main database and app configuration.
 
 ## Flow
 
-1. The user opens the `AI Search` dialog from the case list toolbar.
-2. The user enters a natural-language request such as:
+1. The user types into the unified case-list search field.
+2. The frontend automatically decides whether to use:
+   - normal text search
+   - JSON condition search
+   - AI-assisted natural-language search
+3. The user can enter a natural-language request such as:
    - `give me all cases that risk score greater than 5`
    - `list all cases assigned to bob or bob works on`
-3. The backend sends the prompt plus a compact GenCase search design guide to the configured LLM.
-4. The LLM must return strict JSON containing:
+4. The backend sends the prompt plus a compact GenCase search design guide and observed visible-case JSON paths to the configured LLM.
+5. The LLM must return strict JSON containing:
    - a short `explanation`
    - a structured `plan`
-5. The GenCase AI module validates the plan.
-6. The validated plan is executed locally against the current user's visible cases only.
-7. Results are returned to the frontend using the same pagination and sorting style as the normal case list.
+6. The GenCase AI module validates the plan.
+7. The validated plan is executed locally against the current user's visible cases only.
+8. If the first AI plan returns zero results, GenCase retries once with a broader context prompt based on the visible JSON paths.
+9. Results are returned to the frontend using the same pagination and sorting style as the normal case list.
 
 ## Supported Search Plan
 

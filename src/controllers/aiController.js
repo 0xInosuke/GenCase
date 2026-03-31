@@ -1,7 +1,8 @@
 const { getAiConfig } = require("../config/env");
+const caseModel = require("../models/caseModel");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { interpretCaseSearchPrompt, validatePlan } = require("../services/aiProviderService");
-const { runCaseSearchForUser } = require("../services/aiCaseSearchService");
+const { runCaseSearchForUser, runCaseSearchOnCases, buildSearchContextFromCases } = require("../services/aiCaseSearchService");
 
 const aiRequestBuckets = new Map();
 
@@ -50,6 +51,7 @@ module.exports = {
       const prompt = String(req.body?.prompt || "").trim();
       let explanation = "";
       let plan = null;
+      let result = null;
 
       if (prompt) {
         if (prompt.length > 1000) {
@@ -57,17 +59,34 @@ module.exports = {
         }
 
         enforceAiRateLimit(req.sessionUser.user_id);
-        const interpreted = await interpretCaseSearchPrompt(prompt);
+        const visibleCases = await caseModel.listAllCasesForAi(req.sessionUser.user_id);
+        const searchContext = buildSearchContextFromCases(visibleCases);
+        const interpreted = await interpretCaseSearchPrompt(prompt, searchContext);
         explanation = interpreted.explanation;
         plan = interpreted.plan;
+        result = runCaseSearchOnCases(visibleCases, plan, options);
+
+        if (result.pagination.total_count === 0 && searchContext.jsonPaths.length > 0) {
+          const retry = await interpretCaseSearchPrompt(prompt, {
+            ...searchContext,
+            zeroResultRetry: true,
+            previousPlan: plan
+          });
+          const retryResult = runCaseSearchOnCases(visibleCases, retry.plan, options);
+          if (retryResult.pagination.total_count > 0) {
+            explanation = retry.explanation || explanation;
+            plan = retry.plan;
+            result = retryResult;
+          }
+        }
       } else if (req.body?.plan) {
         plan = validatePlan(req.body.plan);
         explanation = String(req.body?.explanation || "").trim();
+        result = await runCaseSearchForUser(req.sessionUser.user_id, plan, options);
       } else {
         fail("Either prompt or plan is required.");
       }
 
-      const result = await runCaseSearchForUser(req.sessionUser.user_id, plan, options);
       res.json({
         ...result,
         ai: {

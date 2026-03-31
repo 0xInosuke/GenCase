@@ -45,7 +45,7 @@ Case visibility rules:
 - Case list view includes sortable `last edited by` and `last edited date` columns based on the latest case audit activity, including comment activity.
 - Case list search supports both plain text search and JSON condition search against `case_data`.
 - JSON condition search uses a JSON object such as `{"owner":"alice","severity":"high"}` and still only returns cases visible to the current user.
-- Case list now also includes an `AI Search` dialog that accepts natural-language requests and translates them into validated case-search plans.
+- Case list now uses one unified search field for plain text, JSON condition search, and AI-assisted natural-language case search.
 - Case detail view supports one-click export to `.json` or `.md`, including case fields, `case_data`, and all visible comments with author, timestamp, and content.
 
 Detailed case permission logic:

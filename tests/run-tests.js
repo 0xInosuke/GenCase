@@ -121,6 +121,7 @@ async function startAiMockServer() {
 
     const parsedBody = rawBody ? JSON.parse(rawBody) : {};
     const prompt = String(parsedBody?.messages?.find((item) => item.role === "user")?.content || "").toLowerCase();
+    const systemPrompt = String(parsedBody?.messages?.find((item) => item.role === "system")?.content || "").toLowerCase();
 
     let payload;
     if (prompt.includes("risk score")) {
@@ -133,6 +134,26 @@ async function startAiMockServer() {
           ]
         }
       };
+    } else if (prompt.includes("quality score")) {
+      payload = systemPrompt.includes("previous search plan returned zero visible results")
+        ? {
+            explanation: "Retry with the observed score path.",
+            plan: {
+              match: "and",
+              conditions: [
+                { field: "case_data.metadata.score", operator: "gt", value: 5 }
+              ]
+            }
+          }
+        : {
+            explanation: "Initial guess uses a narrower score path.",
+            plan: {
+              match: "and",
+              conditions: [
+                { field: "case_data.quality.score", operator: "gt", value: 5 }
+              ]
+            }
+          };
     } else if (prompt.includes("bob")) {
       payload = {
         explanation: "Find visible cases connected to Bob.",
@@ -850,6 +871,21 @@ async function main() {
     assert.ok(aiPlanReplay.body.pagination.total_count >= 1);
     assert.ok(aiPlanReplay.body.items.length <= 5);
     markTestCase("ai case search plan replay");
+
+    const aiRetrySearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "show all cases with quality score above 5",
+        page: 1,
+        page_size: 50,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiRetrySearch.status, 200);
+    assert.ok(aiRetrySearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
+    assert.equal(aiRetrySearch.body.ai.plan.conditions[0].field, "case_data.metadata.score");
+    markTestCase("ai case search retry after zero results");
 
     const aiLongPrompt = await request("/api/ai/case-search", {
       method: "POST",

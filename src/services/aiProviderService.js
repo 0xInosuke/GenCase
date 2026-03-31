@@ -50,6 +50,40 @@ Examples:
   => or over case_data.owner, case_data.assignee, case_data.assigned_to, case_data.participants
 `;
 
+function buildContextBlock(context = {}) {
+  const lines = [];
+
+  if (Number.isInteger(context.visibleCaseCount)) {
+    lines.push(`Visible case count: ${context.visibleCaseCount}`);
+  }
+
+  if (Array.isArray(context.workflowNames) && context.workflowNames.length > 0) {
+    lines.push(`Visible workflow names: ${context.workflowNames.join(", ")}`);
+  }
+
+  if (Array.isArray(context.stageCodes) && context.stageCodes.length > 0) {
+    lines.push(`Visible stage codes: ${context.stageCodes.join(", ")}`);
+  }
+
+  if (Array.isArray(context.jsonPaths) && context.jsonPaths.length > 0) {
+    lines.push(`Observed case_data paths: ${context.jsonPaths.join(", ")}`);
+  }
+
+  if (context.zeroResultRetry === true) {
+    lines.push("Previous search plan returned zero visible results. Broaden carefully using the observed paths when appropriate.");
+  }
+
+  if (context.previousPlan) {
+    lines.push(`Previous zero-result plan: ${JSON.stringify(context.previousPlan)}`);
+  }
+
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return `\n\nLive GenCase search context:\n${lines.map((line) => `- ${line}`).join("\n")}`;
+}
+
 function isCaseDataField(field) {
   return typeof field === "string" && /^case_data(?:\.[A-Za-z0-9_]+)+$/.test(field);
 }
@@ -124,7 +158,7 @@ function parseAiResponseBody(body) {
   };
 }
 
-async function interpretCaseSearchPrompt(prompt) {
+async function interpretCaseSearchPrompt(prompt, context = {}) {
   const config = getAiConfig();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -144,7 +178,7 @@ async function interpretCaseSearchPrompt(prompt) {
         messages: [
           {
             role: "system",
-            content: CASE_SEARCH_DESIGN_GUIDE.trim()
+            content: `${CASE_SEARCH_DESIGN_GUIDE.trim()}${buildContextBlock(context)}`
           },
           {
             role: "user",

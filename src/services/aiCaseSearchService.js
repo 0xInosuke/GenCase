@@ -1,5 +1,30 @@
 const caseModel = require("../models/caseModel");
 
+function collectJsonPathsFromValue(value, currentPath, collector) {
+  if (Array.isArray(value)) {
+    collector.add(currentPath);
+    for (const item of value) {
+      if (item && typeof item === "object") {
+        collectJsonPathsFromValue(item, currentPath, collector);
+      }
+    }
+    return;
+  }
+
+  if (!value || typeof value !== "object") {
+    if (currentPath) {
+      collector.add(currentPath);
+    }
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const nextPath = currentPath ? `${currentPath}.${key}` : `case_data.${key}`;
+    collector.add(nextPath);
+    collectJsonPathsFromValue(nestedValue, nextPath, collector);
+  }
+}
+
 function getFieldValue(record, field) {
   if (field === "case_title" || field === "wf_name" || field === "stage_code") {
     return record[field];
@@ -141,8 +166,7 @@ function compareForSort(left, right, sortBy, sortDir) {
   return sortDir === "desc" ? -result : result;
 }
 
-async function runCaseSearchForUser(userId, plan, options) {
-  const visibleCases = await caseModel.listAllCasesForAi(userId);
+function runCaseSearchOnCases(visibleCases, plan, options) {
   const matchedCases = visibleCases
     .filter((item) => matchPlan(item, plan))
     .sort((left, right) => compareForSort(left, right, options.sortBy, options.sortDir));
@@ -162,6 +186,36 @@ async function runCaseSearchForUser(userId, plan, options) {
   };
 }
 
+function buildSearchContextFromCases(visibleCases) {
+  const workflowNames = new Set();
+  const stageCodes = new Set();
+  const jsonPaths = new Set();
+
+  for (const item of visibleCases) {
+    if (item.wf_name) {
+      workflowNames.add(String(item.wf_name));
+    }
+    if (item.stage_code) {
+      stageCodes.add(String(item.stage_code));
+    }
+    collectJsonPathsFromValue(item.case_data, "", jsonPaths);
+  }
+
+  return {
+    visibleCaseCount: visibleCases.length,
+    workflowNames: Array.from(workflowNames).sort((left, right) => left.localeCompare(right)).slice(0, 20),
+    stageCodes: Array.from(stageCodes).sort((left, right) => left.localeCompare(right)).slice(0, 20),
+    jsonPaths: Array.from(jsonPaths).sort((left, right) => left.localeCompare(right)).slice(0, 80)
+  };
+}
+
+async function runCaseSearchForUser(userId, plan, options) {
+  const visibleCases = await caseModel.listAllCasesForAi(userId);
+  return runCaseSearchOnCases(visibleCases, plan, options);
+}
+
 module.exports = {
-  runCaseSearchForUser
+  runCaseSearchForUser,
+  runCaseSearchOnCases,
+  buildSearchContextFromCases
 };
