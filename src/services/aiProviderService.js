@@ -56,6 +56,23 @@ Examples:
   => comment_authors contains "alice" or comment_user_names contains "alice"
 `;
 
+const SEMANTIC_CASE_SEARCH_GUIDE = `
+You help GenCase perform semantic case search over pre-filtered candidate case summaries.
+
+Business rules:
+- Only use the candidate cases provided in the prompt.
+- Return only case IDs from that candidate list.
+- Do not invent IDs or fields.
+- Prefer recall over strict wording matches when the case summary clearly matches the user's intent.
+- If nothing matches, return an empty array.
+
+Output JSON shape:
+{
+  "explanation": "short plain-language summary",
+  "matched_case_ids": [12, 19]
+}
+`;
+
 function buildContextBlock(context = {}) {
   const lines = [];
 
@@ -168,6 +185,31 @@ function parseAiResponseBody(body) {
   };
 }
 
+function parseSemanticAiResponseBody(body, candidateIds) {
+  const content = body?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("AI provider returned an empty response.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (_error) {
+    throw new Error("AI provider returned invalid JSON content.");
+  }
+
+  const matchedIds = Array.isArray(parsed.matched_case_ids)
+    ? parsed.matched_case_ids
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && candidateIds.has(item))
+    : [];
+
+  return {
+    explanation: String(parsed.explanation || "").trim(),
+    matchedCaseIds: Array.from(new Set(matchedIds))
+  };
+}
+
 async function interpretCaseSearchPrompt(prompt, context = {}) {
   const config = getAiConfig();
   const controller = new AbortController();
@@ -224,7 +266,82 @@ async function interpretCaseSearchPrompt(prompt, context = {}) {
   }
 }
 
+async function interpretSemanticCaseSearchPrompt(prompt, semanticContext = {}) {
+  const config = getAiConfig();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  const candidateSummaries = Array.isArray(semanticContext.candidates)
+    ? semanticContext.candidates.map((item) => ({
+      id: Number(item.id),
+      title: item.title,
+      workflow: item.workflow,
+      stage: item.stage,
+      lastEditedBy: item.lastEditedBy,
+      commentAuthors: item.commentAuthors,
+      commentPreview: item.commentPreview,
+      keyFacts: item.keyFacts
+    }))
+    : [];
+  const candidateIds = new Set(candidateSummaries.map((item) => Number(item.id)));
+
+  try {
+    const response = await fetch(config.apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: config.model,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${SEMANTIC_CASE_SEARCH_GUIDE.trim()}
+
+Visible case count: ${Number.isInteger(semanticContext.visibleCaseCount) ? semanticContext.visibleCaseCount : candidateSummaries.length}
+Candidate case count: ${candidateSummaries.length}
+Candidate case summaries JSON:
+${JSON.stringify(candidateSummaries)}`
+          },
+          {
+            role: "user",
+            content: String(prompt || "").trim()
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      const error = new Error(`AI provider request failed with status ${response.status}.`);
+      error.statusCode = 502;
+      error.details = details;
+      throw error;
+    }
+
+    const body = await response.json();
+    return parseSemanticAiResponseBody(body, candidateIds);
+  } catch (error) {
+    if (error.name === "AbortError") {
+      error.statusCode = 504;
+      error.message = "AI provider request timed out.";
+    }
+
+    if (!error.statusCode) {
+      error.statusCode = 502;
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 module.exports = {
   interpretCaseSearchPrompt,
+  interpretSemanticCaseSearchPrompt,
   validatePlan
 };

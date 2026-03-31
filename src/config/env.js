@@ -84,6 +84,8 @@ function getAiConfig() {
   const timeoutMs = Number(process.env.AI_TIMEOUT_MS || 20000);
   const rateLimitWindowMs = Number(process.env.AI_RATE_LIMIT_WINDOW_MS || 60000);
   const rateLimitMaxRequests = Number(process.env.AI_RATE_LIMIT_MAX_REQUESTS || 20);
+  const semanticFilterEnabled = String(process.env.AI_SEMANTIC_FILTER_ENABLED || "false").trim().toLowerCase() === "true";
+  const semanticCandidateLimit = Number(process.env.AI_SEMANTIC_CANDIDATE_LIMIT || 120);
 
   if (!apiUrl || !apiKey || !model) {
     const error = new Error("AI search is not configured. Set AI_API_URL, AI_API_KEY, and AI_MODEL in .env.");
@@ -97,7 +99,11 @@ function getAiConfig() {
     model,
     timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 20000,
     rateLimitWindowMs: Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0 ? rateLimitWindowMs : 60000,
-    rateLimitMaxRequests: Number.isFinite(rateLimitMaxRequests) && rateLimitMaxRequests > 0 ? rateLimitMaxRequests : 20
+    rateLimitMaxRequests: Number.isFinite(rateLimitMaxRequests) && rateLimitMaxRequests > 0 ? rateLimitMaxRequests : 20,
+    semanticFilterEnabled,
+    semanticCandidateLimit: Number.isFinite(semanticCandidateLimit) && semanticCandidateLimit > 0
+      ? semanticCandidateLimit
+      : 120
   };
 }
 

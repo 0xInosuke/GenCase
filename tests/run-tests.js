@@ -122,6 +122,47 @@ async function startAiMockServer() {
     const parsedBody = rawBody ? JSON.parse(rawBody) : {};
     const prompt = String(parsedBody?.messages?.find((item) => item.role === "user")?.content || "").toLowerCase();
     const systemPrompt = String(parsedBody?.messages?.find((item) => item.role === "system")?.content || "").toLowerCase();
+    const semanticMarker = "candidate case summaries json:\n";
+    const semanticIndex = systemPrompt.indexOf(semanticMarker);
+
+    if (semanticIndex >= 0) {
+      const rawJson = parsedBody.messages.find((item) => item.role === "system")?.content?.slice(semanticIndex + semanticMarker.length) || "[]";
+      const candidates = JSON.parse(rawJson);
+      let matchedCaseIds = [];
+      let explanation = "Semantic filter found no matching cases.";
+
+      if (prompt.includes("risk score")) {
+        matchedCaseIds = candidates
+          .filter((item) => Array.isArray(item.keyFacts) && item.keyFacts.some((fact) => fact.path.endsWith("score") && Number(fact.value) > 5))
+          .map((item) => Number(item.id));
+        explanation = "Semantic filter matched candidate cases whose score is above 5.";
+      } else if (prompt.includes("bob")) {
+        matchedCaseIds = candidates
+          .filter((item) => JSON.stringify(item).toLowerCase().includes("bob"))
+          .map((item) => Number(item.id));
+        explanation = "Semantic filter matched candidate cases related to Bob.";
+      } else if (prompt.includes("alice replied")) {
+        matchedCaseIds = candidates
+          .filter((item) => Array.isArray(item.commentAuthors) && item.commentAuthors.some((author) => String(author).toLowerCase().includes("alice")))
+          .map((item) => Number(item.id));
+        explanation = "Semantic filter matched candidate cases where Alice replied.";
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                explanation,
+                matched_case_ids: matchedCaseIds
+              })
+            }
+          }
+        ]
+      }));
+      return;
+    }
 
     let payload;
     if (prompt.includes("risk score")) {
@@ -214,6 +255,8 @@ async function startAiMockServer() {
   process.env.AI_API_KEY = "test-ai-key";
   process.env.AI_MODEL = "test-ai-model";
   process.env.AI_TIMEOUT_MS = "5000";
+  process.env.AI_SEMANTIC_FILTER_ENABLED = "false";
+  process.env.AI_SEMANTIC_CANDIDATE_LIMIT = "120";
 }
 
 async function main() {
@@ -925,6 +968,25 @@ async function main() {
     assert.ok(aiReplySearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
     assert.ok(["comment_authors", "comment_user_names"].includes(aiReplySearch.body.ai.plan.conditions[0].field));
     markTestCase("ai case search by comment author");
+
+    process.env.AI_SEMANTIC_FILTER_ENABLED = "true";
+    const aiSemanticSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "list all cases assigned to bob or bob works on",
+        page: 1,
+        page_size: 50,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiSemanticSearch.status, 200);
+    assert.equal(aiSemanticSearch.body.ai.mode, "semantic");
+    assert.ok(aiSemanticSearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
+    assert.ok(Array.isArray(aiSemanticSearch.body.ai.semantic.matched_case_ids));
+    assert.ok(typeof aiSemanticSearch.body.ai.semantic.snapshot_fingerprint === "string");
+    markTestCase("ai semantic filter search");
+    process.env.AI_SEMANTIC_FILTER_ENABLED = "false";
 
     const aiLongPrompt = await request("/api/ai/case-search", {
       method: "POST",

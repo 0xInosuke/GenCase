@@ -88,6 +88,7 @@ Status code values:
 
 1. Fill in [`.env`](./.env)
    - If you want AI-assisted case search, also set `AI_API_URL`, `AI_API_KEY`, `AI_MODEL`, and optionally `AI_TIMEOUT_MS`
+   - Set `AI_SEMANTIC_FILTER_ENABLED=true` to enable the new hybrid semantic filter, or `false` to keep plan-based AI search only
 2. Fill in `api_keys.env`
 3. Rebuild the database:
 
