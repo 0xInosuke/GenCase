@@ -210,6 +210,16 @@ async function main() {
     assert.equal(unauthorizedUsers.status, 401);
     markTestCase("unauthorized users request blocked");
 
+    const unauthorizedAiSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      useAuth: false,
+      body: JSON.stringify({
+        prompt: "give me all cases that risk score greater than 5"
+      })
+    });
+    assert.equal(unauthorizedAiSearch.status, 401);
+    markTestCase("unauthorized ai search blocked");
+
     const badLogin = await request("/api/auth/login", {
       method: "POST",
       useAuth: false,
@@ -840,6 +850,17 @@ async function main() {
     assert.ok(aiPlanReplay.body.pagination.total_count >= 1);
     assert.ok(aiPlanReplay.body.items.length <= 5);
     markTestCase("ai case search plan replay");
+
+    const aiLongPrompt = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "x".repeat(1001),
+        page: 1,
+        page_size: 5
+      })
+    });
+    assert.equal(aiLongPrompt.status, 400);
+    markTestCase("ai case search prompt length enforced");
 
     const deleteUserGroup = await request(`/api/user-groups/${createdUserGroupId}`, {
       method: "DELETE"

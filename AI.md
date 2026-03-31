@@ -13,9 +13,13 @@ AI_API_URL=https://your-llm-endpoint.example/v1/chat/completions
 AI_API_KEY=your_api_key
 AI_MODEL=your_model_name
 AI_TIMEOUT_MS=20000
+AI_RATE_LIMIT_WINDOW_MS=60000
+AI_RATE_LIMIT_MAX_REQUESTS=20
 ```
 
 These settings are independent from the main database and app configuration.
+
+`AI_API_URL` must be the final provider endpoint. GenCase does not rewrite or append provider paths automatically.
 
 ## Flow
 
@@ -92,6 +96,81 @@ or an already generated structured plan:
 ## Safety Rules
 
 - AI search only returns cases already visible to the current logged-in user.
+- The AI route is mounted under `/api`, so requests without a valid session cookie are rejected with `401`.
+- There is no external API-key variant of the AI route. `/external-api/...` does not expose AI search.
 - The model may suggest filters, but GenCase executes them locally after validation.
 - Unsupported fields and operators are rejected before execution.
+- AI prompt length is capped to reduce accidental oversized requests.
+- AI requests are rate-limited per logged-in user to reduce abuse and uncontrolled model spend.
 - Existing `/api/cases` list search remains unchanged.
+
+## Abuse Risk Notes
+
+Current risk profile:
+
+- Unauthenticated internet callers cannot use the AI route because `/api/ai/case-search` requires a login session.
+- Authenticated users can still call the route directly with browser devtools, `curl`, or custom scripts. That is expected because the frontend itself uses the same backend API.
+- The main remaining abuse risk is cost or volume from a valid logged-in user repeatedly sending prompts.
+
+Current protections:
+
+- Session authentication is required.
+- `SameSite=Lax` and `HttpOnly` are set on the session cookie.
+- Requests are rate-limited per user.
+- The backend validates the returned plan before executing it.
+- The backend never executes model-generated SQL.
+
+## Suggested Manual API Checks
+
+1. Unauthenticated request should fail:
+
+```http
+POST /api/ai/case-search
+```
+
+Expected:
+
+```json
+{ "error": "Authentication required." }
+```
+
+2. Authenticated request with a natural-language prompt should succeed.
+
+3. Authenticated request with an oversized prompt should return `400`.
+
+4. Repeated authenticated requests above the configured limit should return `429`.
+
+## Example Test Cases
+
+Natural-language prompts worth testing:
+
+- `give me all cases that risk score greater than 5`
+- `list all cases assigned to bob or bob works on`
+- `show all draft cases in onboarding workflow`
+- `find cases where owner is alice`
+- `find cases where metadata.score is at least 80`
+- `show cases with participants including bob`
+- `show cases whose title contains infrastructure`
+
+Expected structured-plan examples:
+
+```json
+{
+  "match": "and",
+  "conditions": [
+    { "field": "case_data.metadata.score", "operator": "gt", "value": 5 }
+  ]
+}
+```
+
+```json
+{
+  "match": "or",
+  "conditions": [
+    { "field": "case_data.owner", "operator": "eq", "value": "bob" },
+    { "field": "case_data.assignee", "operator": "eq", "value": "bob" },
+    { "field": "case_data.assigned_to", "operator": "eq", "value": "bob" },
+    { "field": "case_data.participants", "operator": "contains", "value": "bob" }
+  ]
+}
+```

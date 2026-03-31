@@ -82,6 +82,8 @@ function getAiConfig() {
   const apiKey = String(process.env.AI_API_KEY || "").trim();
   const model = String(process.env.AI_MODEL || "").trim();
   const timeoutMs = Number(process.env.AI_TIMEOUT_MS || 20000);
+  const rateLimitWindowMs = Number(process.env.AI_RATE_LIMIT_WINDOW_MS || 60000);
+  const rateLimitMaxRequests = Number(process.env.AI_RATE_LIMIT_MAX_REQUESTS || 20);
 
   if (!apiUrl || !apiKey || !model) {
     const error = new Error("AI search is not configured. Set AI_API_URL, AI_API_KEY, and AI_MODEL in .env.");
@@ -93,7 +95,9 @@ function getAiConfig() {
     apiUrl,
     apiKey,
     model,
-    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 20000
+    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 20000,
+    rateLimitWindowMs: Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0 ? rateLimitWindowMs : 60000,
+    rateLimitMaxRequests: Number.isFinite(rateLimitMaxRequests) && rateLimitMaxRequests > 0 ? rateLimitMaxRequests : 20
   };
 }
 

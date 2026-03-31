@@ -1,11 +1,28 @@
+const { getAiConfig } = require("../config/env");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
 const { interpretCaseSearchPrompt, validatePlan } = require("../services/aiProviderService");
 const { runCaseSearchForUser } = require("../services/aiCaseSearchService");
+
+const aiRequestBuckets = new Map();
 
 function fail(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
   throw error;
+}
+
+function enforceAiRateLimit(userId) {
+  const config = getAiConfig();
+  const now = Date.now();
+  const existingTimestamps = aiRequestBuckets.get(userId) || [];
+  const recentTimestamps = existingTimestamps.filter((timestamp) => now - timestamp < config.rateLimitWindowMs);
+
+  if (recentTimestamps.length >= config.rateLimitMaxRequests) {
+    fail("AI search rate limit exceeded. Please wait and try again.", 429);
+  }
+
+  recentTimestamps.push(now);
+  aiRequestBuckets.set(userId, recentTimestamps);
 }
 
 function parseListOptions(body) {
@@ -35,6 +52,11 @@ module.exports = {
       let plan = null;
 
       if (prompt) {
+        if (prompt.length > 1000) {
+          fail("AI search prompt is too long. Keep it under 1000 characters.");
+        }
+
+        enforceAiRateLimit(req.sessionUser.user_id);
         const interpreted = await interpretCaseSearchPrompt(prompt);
         explanation = interpreted.explanation;
         plan = interpreted.plan;
