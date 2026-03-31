@@ -50,6 +50,25 @@ Examples:
   => or over case_data.owner, case_data.assignee, case_data.assigned_to, case_data.participants
 `;
 
+function resolveApiUrl(rawUrl) {
+  const parsed = new URL(rawUrl);
+  if (parsed.pathname.endsWith("/chat/completions")) {
+    return parsed.toString();
+  }
+
+  const normalizedPath = parsed.pathname.replace(/\/+$/, "");
+  if (!normalizedPath || normalizedPath === "/v1") {
+    parsed.pathname = `${normalizedPath || "/v1"}/chat/completions`;
+    return parsed.toString();
+  }
+
+  if (!normalizedPath.endsWith("/chat/completions")) {
+    parsed.pathname = `${normalizedPath}/chat/completions`;
+  }
+
+  return parsed.toString();
+}
+
 function isCaseDataField(field) {
   return typeof field === "string" && /^case_data(?:\.[A-Za-z0-9_]+)+$/.test(field);
 }
@@ -126,11 +145,12 @@ function parseAiResponseBody(body) {
 
 async function interpretCaseSearchPrompt(prompt) {
   const config = getAiConfig();
+  const requestUrl = resolveApiUrl(config.apiUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
 
   try {
-    const response = await fetch(config.apiUrl, {
+    const response = await fetch(requestUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
