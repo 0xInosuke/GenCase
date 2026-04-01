@@ -9,7 +9,13 @@
 <body>
   <header class="app-banner">
     <div class="app-banner__inner">
-      <strong>GenCase</strong>
+      <div class="app-banner__left">
+        <strong>GenCase</strong>
+        <span id="banner-user-welcome">Welcome: <span id="banner-user-name">-</span></span>
+      </div>
+      <div class="app-banner__right">
+        <button type="button" id="logout-button" class="secondary compact">Logout</button>
+      </div>
     </div>
   </header>
   <main class="shell">
@@ -37,7 +43,6 @@
         </div>
         <div class="header-actions">
           <button type="button" id="create-button">Create New</button>
-          <button type="button" id="logout-button" class="secondary">Logout</button>
         </div>
       </header>
       <section id="page-toast" class="page-toast hidden" aria-live="polite">

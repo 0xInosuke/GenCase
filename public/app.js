@@ -63,6 +63,15 @@ function clearStatus() {
   }
 }
 
+function setBannerUser(user) {
+  const el = document.getElementById("banner-user-name");
+  if (!el) {
+    return;
+  }
+  const name = user?.display_name || user?.user_name || "-";
+  el.textContent = name;
+}
+
 function updateBrowserLocation() {
   const nextPath = state.activeModel === "cases" && state.view === "detail" && state.selectedRecord
     ? `/cases/${state.selectedRecord.id}`
@@ -665,7 +674,8 @@ function registerEvents() {
 
 async function boot() {
   try {
-    await apiRequest("/api/auth/me");
+    const me = await apiRequest("/api/auth/me");
+    setBannerUser(me);
     registerEvents();
     setConsoleCollapsed(true);
     await loadAiStatus();
@@ -682,6 +692,7 @@ async function boot() {
     }
     setStatus("Data loaded.");
   } catch (error) {
+    setBannerUser(null);
     setStatus(error.message, true);
   }
 }
