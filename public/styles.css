@@ -61,9 +61,26 @@ body {
   line-height: 1.45;
 }
 
+.app-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #183d5a;
+  color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.app-banner__inner {
+  width: min(1380px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 10px 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
 .shell {
   width: min(1380px, calc(100% - 32px));
-  margin: 20px auto;
+  margin: 14px auto 20px;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 20px;
@@ -106,10 +123,21 @@ body {
   font-size: 13px;
 }
 
+.sidebar-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .nav {
   margin-top: 20px;
   display: grid;
   gap: 10px;
+}
+
+.nav.collapsed button:not([data-model="cases"]) {
+  display: none;
 }
 
 .nav button,

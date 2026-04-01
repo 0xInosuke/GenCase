@@ -169,6 +169,7 @@ Cross-platform script rules:
 - Detail pages render nested `case_data` as hierarchical key-value blocks instead of a raw JSON blob.
 - Case detail export downloads can be saved as JSON for system reuse or Markdown for human-readable handoff.
 - Frontend code is organized as ES modules so model-specific view logic can be maintained independently.
+- UI includes a persistent top banner (`GenCase`) and a collapsible `Admin Console` menu (collapsed by default and focused on `Case` navigation).
 - Audit records are collapsed by default and can be expanded on demand.
 - System messages appear near the page header and auto-dismiss instead of persisting across views.
 - Case update flow now handles "access lost after stage transition" explicitly and shows a clear message instead of leaving the user without context.

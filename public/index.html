@@ -7,17 +7,25 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <header class="app-banner">
+    <div class="app-banner__inner">
+      <strong>GenCase</strong>
+    </div>
+  </header>
   <main class="shell">
     <aside class="sidebar">
       <p class="eyebrow">GenCase</p>
-      <h1>CRUD Console</h1>
+      <div class="sidebar-title-row">
+        <h1>Admin Console</h1>
+        <button type="button" id="console-toggle" class="secondary compact">Expand</button>
+      </div>
       <p class="sidebar-copy">Each business model uses the same list, detail, edit, and delete workflow.</p>
       <nav class="nav" id="model-nav">
         <button type="button" data-model="users">Users</button>
         <button type="button" data-model="groups">Groups</button>
-        <button type="button" data-model="user-groups">User Groups</button>
+        <button type="button" data-model="user-groups">User Group Assignment</button>
         <button type="button" data-model="workflows">Workflows</button>
-        <button type="button" data-model="cases">Cases</button>
+        <button type="button" data-model="cases">Case</button>
       </nav>
     </aside>
 
@@ -25,7 +33,7 @@
       <header class="workspace-header">
         <div>
           <p class="workspace-label" id="view-label">List View</p>
-          <h2 id="view-title">Users</h2>
+          <h2 id="view-title">Cases</h2>
         </div>
         <div class="header-actions">
           <button type="button" id="create-button">Create New</button>

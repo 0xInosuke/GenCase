@@ -18,6 +18,7 @@ import { renderEditFormView } from "./components/editFormView.js";
 
 const modelConfigs = createModelConfigs(parseJsonInput);
 const state = createInitialState();
+let consoleCollapsed = true;
 
 function setBusy(isBusy, message = "Loading...") {
   state.busy = isBusy;
@@ -102,6 +103,14 @@ function updateHeader() {
   document.querySelectorAll("#model-nav button").forEach((button) => {
     button.classList.toggle("active", button.dataset.model === state.activeModel);
   });
+}
+
+function setConsoleCollapsed(collapsed) {
+  consoleCollapsed = collapsed;
+  const nav = document.getElementById("model-nav");
+  const toggleButton = document.getElementById("console-toggle");
+  nav.classList.toggle("collapsed", collapsed);
+  toggleButton.textContent = collapsed ? "Expand" : "Collapse";
 }
 
 function buildListUrl(model) {
@@ -458,6 +467,14 @@ function registerEvents() {
     });
   });
 
+  document.getElementById("console-toggle").addEventListener("click", async () => {
+    const nextCollapsed = !consoleCollapsed;
+    if (nextCollapsed && state.activeModel !== "cases") {
+      await switchModel("cases");
+    }
+    setConsoleCollapsed(nextCollapsed);
+  });
+
   document.getElementById("search-input").addEventListener("change", async (event) => {
     if (state.activeModel === "cases") {
       try {
@@ -650,6 +667,7 @@ async function boot() {
   try {
     await apiRequest("/api/auth/me");
     registerEvents();
+    setConsoleCollapsed(true);
     await loadAiStatus();
     await loadReferences();
     const directCaseMatch = window.location.pathname.match(/^\/cases\/(\d+)$/);
@@ -660,7 +678,7 @@ async function boot() {
       await refreshCurrentModel();
       await openDetail(Number(directCaseMatch[1]));
     } else {
-      await switchModel("users");
+      await switchModel("cases");
     }
     setStatus("Data loaded.");
   } catch (error) {
