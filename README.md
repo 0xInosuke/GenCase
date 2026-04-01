@@ -128,8 +128,8 @@ Default seeded active user for login:
 
 - `user_name`: `alice`
 - `user_password`: `alice_password_123`
-- seed data now includes `10` users, `5` groups, `6` workflows, and `22` cases
-- seeded workflows also include a captured cloud snapshot of the `PFMC Workflow` and two related PFMC cases
+- seed data now includes `10` users, `5` groups, `6` workflows, and `70` cases
+- seeded workflows also include the `PFMC Workflow` plus `50` PFMC test cases with deterministic outcome and risk-score variants
 - seeded `case_data` includes nested JSON objects and arrays for UI and API testing
 - `alice` can view all seeded cases (admin + editor groups)
 - `bob` can only view part of seeded cases (editor group)

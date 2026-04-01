@@ -461,6 +461,109 @@ VALUES
         '2026-04-01 07:56:07.981365'
     );
 
+WITH pfmc_seed AS (
+    SELECT
+        gs,
+        33 + gs AS id,
+        CASE gs % 9
+            WHEN 1 THEN 'under_assessment'
+            WHEN 2 THEN 'initial_assessment'
+            WHEN 3 THEN 'supervisor_review_initial'
+            WHEN 4 THEN 'supervisor_review_esv'
+            WHEN 5 THEN 'esv_inspection_queue'
+            WHEN 6 THEN 'esv_in_progress'
+            WHEN 7 THEN 'post_esv_assessment'
+            WHEN 8 THEN 'supervisor_review_final'
+            ELSE 'concluded'
+        END AS stage_code,
+        CASE gs % 3
+            WHEN 0 THEN 'No further action'
+            WHEN 1 THEN 'Enhanced site visit required'
+            ELSE 'Continue monitoring'
+        END AS outcome_value,
+        CASE gs % 5
+            WHEN 0 THEN 'Alice Chen'
+            WHEN 1 THEN 'Bob Tan'
+            WHEN 2 THEN 'Diana Koh'
+            WHEN 3 THEN 'Ethan Ng'
+            ELSE 'Helen Goh'
+        END AS case_owner,
+        CASE gs % 4
+            WHEN 0 THEN 'Andrew Teo'
+            WHEN 1 THEN 'Alice Chen'
+            WHEN 2 THEN 'Bob Tan'
+            ELSE 'Diana Koh'
+        END AS action_taker,
+        CASE
+            WHEN gs % 3 = 0 THEN ROUND((8.25 + ((gs % 5) * 0.5))::numeric, 2)
+            ELSE ROUND((2.50 + ((gs % 11) * 0.45))::numeric, 2)
+        END AS risk_score
+    FROM generate_series(1, 48) AS gs
+)
+INSERT INTO tb_case (id, workflow_id, case_title, case_data, stage_code, created_at, updated_at)
+SELECT
+    seed.id,
+    10,
+    'PFMC Seed Case ' || LPAD(seed.gs::text, 2, '0') || ' - ' ||
+        CASE seed.gs % 6
+            WHEN 0 THEN 'Meridian Capital'
+            WHEN 1 THEN 'Northbridge Advisory'
+            WHEN 2 THEN 'Silverline Trustees'
+            WHEN 3 THEN 'Harbor Crest Partners'
+            WHEN 4 THEN 'Summit Axis Holdings'
+            ELSE 'Bluewave Strategic'
+        END || ' ' || (2025 + (seed.gs % 3))::text,
+    jsonb_build_object(
+        'Outcome', seed.outcome_value,
+        'Assessment',
+            CASE
+                WHEN seed.outcome_value = 'No further action' THEN 'PFMC review completed with no further escalation required.'
+                WHEN seed.outcome_value = 'Enhanced site visit required' THEN 'Indicators require ESV queue placement for deeper validation.'
+                ELSE 'Monitor the FMC for recurring indicators and reassess next cycle.'
+            END,
+        'Case owner', seed.case_owner,
+        'Action-taker', seed.action_taker,
+        'Overall risk score', seed.risk_score,
+        'metadata', jsonb_build_object(
+            'score', seed.risk_score,
+            'outcome_code',
+                CASE
+                    WHEN seed.outcome_value = 'No further action' THEN 'no_further_action'
+                    WHEN seed.outcome_value = 'Enhanced site visit required' THEN 'enhanced_site_visit_required'
+                    ELSE 'continue_monitoring'
+                END,
+            'bucket',
+                CASE
+                    WHEN seed.risk_score >= 8 THEN 'critical'
+                    WHEN seed.risk_score >= 5 THEN 'high'
+                    ELSE 'moderate'
+                END,
+            'cohort', 'pfmc_seed_2026',
+            'seed_index', seed.gs
+        ),
+        'portfolio', jsonb_build_object(
+            'jurisdiction',
+                CASE seed.gs % 4
+                    WHEN 0 THEN 'SG'
+                    WHEN 1 THEN 'HK'
+                    WHEN 2 THEN 'AE'
+                    ELSE 'UK'
+                END,
+            'segment',
+                CASE seed.gs % 3
+                    WHEN 0 THEN 'institutional'
+                    WHEN 1 THEN 'wealth'
+                    ELSE 'advisory'
+                END
+        ),
+        'tags', jsonb_build_array('pfmc', 'seeded', seed.stage_code)
+    ),
+    seed.stage_code,
+    TIMESTAMP '2026-04-01 08:00:00' + make_interval(hours => seed.gs),
+    TIMESTAMP '2026-04-01 08:00:00' + make_interval(hours => seed.gs, mins => 15)
+FROM pfmc_seed seed
+ORDER BY seed.id;
+
 INSERT INTO tb_comments (case_id, user_id, content, status_code)
 VALUES
     (1, 1, 'Initial onboarding package has been prepared.', 'ACT'),

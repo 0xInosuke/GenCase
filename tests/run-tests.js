@@ -130,7 +130,10 @@ async function startAiMockServer() {
       let summary = "General case search intent.";
       let signals = [];
 
-      if (prompt.includes("risk score") && prompt.includes("alice replied")) {
+      if (prompt.includes("pfmc") && prompt.includes("risk score") && prompt.includes("no further action")) {
+        summary = "Find PFMC workflow cases with risk score above 8 and outcome no further action.";
+        signals = ["workflow pfmc", "risk score above 8", "outcome no further action"];
+      } else if (prompt.includes("risk score") && prompt.includes("alice replied")) {
         summary = "Find cases with a risk score above 5 that Alice replied to.";
         signals = ["risk score above 5", "replied by alice"];
       } else if (prompt.includes("risk score") && prompt.includes("bob replied")) {
@@ -163,7 +166,17 @@ async function startAiMockServer() {
       let matchedCaseIds = [];
       let explanation = "Semantic filter found no matching cases.";
 
-      if (prompt.includes("risk score") && prompt.includes("alice replied")) {
+      if (prompt.includes("pfmc") && prompt.includes("risk score") && prompt.includes("no further action")) {
+        matchedCaseIds = candidates
+          .filter((item) =>
+            String(item.workflow || "").toLowerCase().includes("pfmc")
+            && Array.isArray(item.keyFacts)
+            && item.keyFacts.some((fact) => String(fact.path || "").toLowerCase() === "outcome" && String(fact.value || "").toLowerCase() === "no further action")
+            && item.keyFacts.some((fact) => String(fact.path || "").toLowerCase().endsWith("score") && Number(fact.value) > 8)
+          )
+          .map((item) => Number(item.id));
+        explanation = "Semantic filter matched PFMC cases with score above 8 and outcome no further action.";
+      } else if (prompt.includes("risk score") && prompt.includes("alice replied")) {
         matchedCaseIds = candidates
           .filter((item) =>
             Array.isArray(item.keyFacts)
@@ -222,7 +235,19 @@ async function startAiMockServer() {
     }
 
     let payload;
-    if (prompt.includes("risk score")) {
+    if (prompt.includes("pfmc") && prompt.includes("risk score") && prompt.includes("no further action")) {
+      payload = {
+        explanation: "Find PFMC workflow cases whose risk score is above 8 and outcome is no further action.",
+        plan: {
+          match: "and",
+          conditions: [
+            { field: "wf_name", operator: "eq", value: "PFMC Workflow" },
+            { field: "case_data.metadata.score", operator: "gt", value: 8 },
+            { field: "case_data.Outcome", operator: "eq", value: "No further action" }
+          ]
+        }
+      };
+    } else if (prompt.includes("risk score")) {
       payload = {
         explanation: "Find visible cases whose risk score is greater than 5.",
         plan: {
@@ -391,11 +416,37 @@ async function main() {
     assert.ok(seededWorkflows.body.pagination.total_count >= 1);
     markTestCase("seeded workflows list");
 
+    const pfmcWorkflow = seededWorkflows.body.items.find((item) => item.wf_name === "PFMC Workflow");
+    assert.ok(pfmcWorkflow);
+    markTestCase("pfmc workflow seeded");
+
     const aliceCases = await request("/api/cases?sort_by=id&sort_dir=asc&page=1&page_size=200");
     assert.equal(aliceCases.status, 200);
     assert.ok(aliceCases.body.items.length >= 1);
     const aliceCaseIds = aliceCases.body.items.map((item) => Number(item.id));
     markTestCase("alice visible cases list");
+
+    const pfmcSeedCases = await queryUser(
+      `SELECT id, case_title
+       FROM tb_case
+       WHERE workflow_id = 10
+       ORDER BY id ASC`
+    );
+    assert.equal(pfmcSeedCases.rows.length, 50);
+    markTestCase("pfmc seeded case count");
+
+    const expectedPfmcAiRows = await queryUser(
+      `SELECT id, case_title
+       FROM tb_case
+       WHERE workflow_id = 10
+         AND COALESCE(case_data ->> 'Outcome', '') = 'No further action'
+         AND COALESCE((case_data -> 'metadata' ->> 'score')::numeric, 0) > 8
+       ORDER BY id ASC`
+    );
+    assert.ok(expectedPfmcAiRows.rows.length >= 1);
+    const expectedPfmcAiIds = expectedPfmcAiRows.rows.map((item) => Number(item.id));
+    const expectedPfmcAiTitles = expectedPfmcAiRows.rows.map((item) => String(item.case_title));
+    markTestCase("pfmc expected ai result baseline");
 
     const aliceJsonCases = await request("/api/cases?search=%7B%22applicant%22%3A%7B%22region%22%3A%22APAC%22%7D%7D&sort_by=id&sort_dir=asc&page=1&page_size=200");
     assert.equal(aliceJsonCases.status, 200);
@@ -1032,6 +1083,33 @@ async function main() {
     assert.ok(["comment_authors", "comment_user_names"].includes(aiReplySearch.body.ai.plan.conditions[0].field));
     markTestCase("ai case search by comment author");
 
+    const aiPfmcPlanSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "show PFMC workflow cases with risk score above 8 and no further action outcome",
+        page: 1,
+        page_size: 100,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiPfmcPlanSearch.status, 200);
+    assert.equal(aiPfmcPlanSearch.body.ai.mode, "plan");
+    assert.equal(aiPfmcPlanSearch.body.ai.plan.match, "and");
+    assert.deepEqual(
+      aiPfmcPlanSearch.body.items.map((item) => Number(item.id)),
+      expectedPfmcAiIds
+    );
+    assert.deepEqual(
+      aiPfmcPlanSearch.body.items.map((item) => String(item.case_title)),
+      expectedPfmcAiTitles
+    );
+    assert.ok(aiPfmcPlanSearch.body.items.every((item) => item.wf_name === "PFMC Workflow"));
+    assert.ok(aiPfmcPlanSearch.body.items.every((item) => Number(item.case_data?.metadata?.score || 0) > 8));
+    assert.ok(aiPfmcPlanSearch.body.items.every((item) => String(item.case_data?.Outcome || "") === "No further action"));
+    assert.equal(aiPfmcPlanSearch.body.pagination.total_count, expectedPfmcAiIds.length);
+    markTestCase("ai pfmc plan search exact list");
+
     process.env.AI_SEMANTIC_FILTER_ENABLED = "true";
     const aiStatusSemantic = await request("/api/ai/status");
     assert.equal(aiStatusSemantic.status, 200);
@@ -1087,6 +1165,31 @@ async function main() {
     assert.ok(aiSemanticStageSearch.body.items.some((item) => Number(item.id) === Number(createdCaseId)));
     assert.ok(aiSemanticStageSearch.body.items.every((item) => item.stage_code === "security_review"));
     markTestCase("ai semantic stage search");
+
+    const aiPfmcSemanticSearch = await request("/api/ai/case-search", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "show PFMC workflow cases with risk score above 8 and no further action outcome",
+        page: 1,
+        page_size: 100,
+        sort_by: "id",
+        sort_dir: "asc"
+      })
+    });
+    assert.equal(aiPfmcSemanticSearch.status, 200);
+    assert.equal(aiPfmcSemanticSearch.body.ai.mode, "semantic");
+    assert.deepEqual(
+      aiPfmcSemanticSearch.body.items.map((item) => Number(item.id)),
+      expectedPfmcAiIds
+    );
+    assert.deepEqual(
+      aiPfmcSemanticSearch.body.ai.semantic.matched_case_ids,
+      expectedPfmcAiIds
+    );
+    assert.ok(aiPfmcSemanticSearch.body.ai.semantic.intent.signals.includes("workflow pfmc"));
+    assert.ok(aiPfmcSemanticSearch.body.ai.semantic.intent.signals.includes("risk score above 8"));
+    assert.ok(aiPfmcSemanticSearch.body.ai.semantic.intent.signals.includes("outcome no further action"));
+    markTestCase("ai pfmc semantic search exact list");
 
     process.env.AI_SEMANTIC_FILTER_ENABLED = "false";
 

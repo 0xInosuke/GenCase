@@ -232,4 +232,42 @@ Current code and database scripts
 
 --------------------------------------------------
 
+# 13. ENVIRONMENT AND DEPLOYMENT OPERATIONS
+
+Agents must follow these cross-platform and cloud-operation rules to avoid repeated trial-and-error.
+
+Shell rules:
+
+- Use PowerShell-native syntax for local Windows commands.
+- Use Bash-native syntax only inside Linux/macOS scripts or explicit remote `bash` execution.
+- Do not mix Bash operators or quoting assumptions directly into PowerShell commands.
+- Do not rely on `&&` in local PowerShell command lines in this repo; use sequential commands or explicit conditional handling instead.
+
+Database reset rules:
+
+- Never run database rebuild and seed commands in parallel.
+- Always run schema reset first, then seed load second.
+- Local Windows order:
+  - `powershell -ExecutionPolicy Bypass -File .\db\init_db.ps1`
+  - `powershell -ExecutionPolicy Bypass -File .\db\init_testdata.ps1`
+- Linux/macOS or remote Linux order:
+  - `bash ./db/init_db.sh ./.env`
+  - `bash ./db/init_testdata.sh ./.env`
+
+Cloud VM rules:
+
+- Assume the deployed app lives under `/opt/GenCase` unless current service configuration proves otherwise.
+- Inspect the systemd service before changing deployment assumptions.
+- When reading app env or running app-owned scripts on the VM, prefer `sudo -u gencase` so file permissions and runtime context match the service user.
+- When copying updated files into `/opt/GenCase`, use `sudo install` or another ownership-preserving move so deployed files remain owned by the service account.
+- If temporary export or diagnostic files are created by the service user under `/tmp` or other shared paths, clean them up with `sudo` when required.
+
+Remote command safety rules:
+
+- Keep remote `gcloud compute ssh --command` payloads simple.
+- For complex remote workflows, copy a small script to the VM and run that script instead of embedding large nested quoting into one command.
+- Verify remote results after rebuilds with an explicit readback query or exported summary instead of assuming the refresh succeeded.
+
+--------------------------------------------------
+
 # END
