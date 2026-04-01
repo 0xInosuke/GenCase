@@ -117,6 +117,42 @@ VALUES
         )
     );
 
+INSERT INTO tb_workflow (id, wf_name, status_code, wf_data, created_at, updated_at)
+VALUES
+    (
+        10,
+        'PFMC Workflow',
+        'ACT',
+        $${
+  "name": "Problematic FMC Assessment Workflow",
+  "access": {
+    "concluded": ["assessment_officer", "supervisor", "inspection_team", "admin"],
+    "esv_in_progress": ["inspection_team", "admin"],
+    "under_assessment": ["assessment_officer", "supervisor", "admin", "system1_api_key"],
+    "initial_assessment": ["assessment_officer", "supervisor", "admin"],
+    "post_esv_assessment": ["assessment_officer", "supervisor", "admin"],
+    "esv_inspection_queue": ["inspection_team", "supervisor", "admin"],
+    "supervisor_review_esv": ["supervisor", "admin"],
+    "supervisor_review_final": ["supervisor", "admin"],
+    "supervisor_review_initial": ["supervisor", "admin"]
+  },
+  "stages": [
+    "under_assessment",
+    "initial_assessment",
+    "supervisor_review_initial",
+    "supervisor_review_esv",
+    "esv_inspection_queue",
+    "esv_in_progress",
+    "post_esv_assessment",
+    "supervisor_review_final",
+    "concluded"
+  ],
+  "description": "Downstream officer assessment workflow for flagged FMCs requiring individual assessment, with paths for direct conclusion or ESV/inspection referral"
+}$$::jsonb,
+        '2026-04-01 07:01:32.511069',
+        '2026-04-01 07:27:32.509203'
+    );
+
 INSERT INTO tb_case (workflow_id, case_title, case_data, stage_code)
 VALUES
     (
@@ -392,6 +428,39 @@ VALUES
         'signed'
     );
 
+INSERT INTO tb_case (id, workflow_id, case_title, case_data, stage_code, created_at, updated_at)
+VALUES
+    (
+        32,
+        10,
+        'Astralux Asset Management 2024',
+        $${
+  "Outcome": "",
+  "Assessment": "",
+  "Case owner": "Andrew Teo",
+  "Action-taker": "Andrew Teo",
+  "Overall risk score": 3.25
+}$$::jsonb,
+        'under_assessment',
+        '2026-04-01 07:36:25.458334',
+        '2026-04-01 07:36:25.458334'
+    ),
+    (
+        33,
+        10,
+        'Quantex Investment Holdings 2025',
+        $${
+  "Outcome": "No further action",
+  "Assessment": "No issues found. To close case.",
+  "Case owner": "Bob Tan",
+  "Action-taker": "Alice Chen",
+  "Overall risk score": 6.75
+}$$::jsonb,
+        'concluded',
+        '2026-04-01 07:36:25.891971',
+        '2026-04-01 07:56:07.981365'
+    );
+
 INSERT INTO tb_comments (case_id, user_id, content, status_code)
 VALUES
     (1, 1, 'Initial onboarding package has been prepared.', 'ACT'),
@@ -420,3 +489,6 @@ VALUES
     ('6', 14, 'case', CURRENT_TIMESTAMP - INTERVAL '24 hour', 'ADD_COMMENTS', '0', '8'),
     ('9', 17, 'case', CURRENT_TIMESTAMP - INTERVAL '18 hour', 'ADD_COMMENTS', '0', '9'),
     ('4', 18, 'case', CURRENT_TIMESTAMP - INTERVAL '12 hour', 'ADD_COMMENTS', '0', '10');
+
+SELECT pg_catalog.setval('public.tb_workflow_id_seq', (SELECT MAX(id) FROM tb_workflow), true);
+SELECT pg_catalog.setval('public.tb_case_id_seq', (SELECT MAX(id) FROM tb_case), true);
