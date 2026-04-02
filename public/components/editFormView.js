@@ -1,6 +1,7 @@
 import { STATUS_CODES } from "../core/constants.js";
 import { getCaseStagesByWorkflowId } from "../core/workflow.js";
 import { initCaseDataEditor, normalizeCaseDataRoot } from "./caseDataEditor.js";
+import { initWorkflowAiChat } from "./workflowAiChat.js";
 
 function buildInput(field, record, state, escapeHtml) {
   const value = record?.[field.key] ?? "";
@@ -95,7 +96,28 @@ function buildInput(field, record, state, escapeHtml) {
           null,
           2
         );
-    return `<textarea name="${field.key}" rows="14" required>${escapeHtml(jsonValue)}</textarea>`;
+    const textarea = `<textarea name="${field.key}" rows="14" required>${escapeHtml(jsonValue)}</textarea>`;
+    if (state.activeModel !== "workflows" || field.key !== "wf_data") {
+      return textarea;
+    }
+
+    return `
+      ${textarea}
+      <div class="workflow-ai-chat" data-workflow-ai-chat>
+        <div class="workflow-ai-chat__header">
+          <strong>Workflow AI Assistant</strong>
+          <p>Describe the workflow requirement in natural language. AI will generate/update JSON and write it into Workflow Data.</p>
+        </div>
+        <div class="workflow-ai-input-wrap">
+          <p>Workflow Requirement (Natural Language)</p>
+          <textarea data-workflow-ai-input rows="4" placeholder="Example: I need an application review workflow with 4 stages. Stage 1 visible to editor/admin, stage 2 and 3 only admin, final stage admin/viewer."></textarea>
+        </div>
+        <div class="workflow-ai-actions">
+          <button type="button" class="secondary" data-workflow-ai-send>Generate JSON</button>
+        </div>
+        <p class="readonly-note" data-workflow-ai-helper></p>
+      </div>
+    `;
   }
 
   return `<input name="${field.key}" type="${field.type}" value="${escapeHtml(value)}" required>`;
@@ -107,7 +129,9 @@ export function renderEditFormView({
   mode,
   escapeHtml,
   parseJsonInput,
+  aiEnabled,
   setStatus,
+  onDirtyChange,
   onSubmit,
   onCancel
 }) {
@@ -119,6 +143,7 @@ export function renderEditFormView({
 
   form.innerHTML = `
     ${!isCreate && state.selectedRecord ? `<p class="readonly-note">Read-only fields such as ID and audit timestamps remain locked in detail view.</p>` : ""}
+    ${state.activeModel === "workflows" ? `<p class="readonly-note workflow-dirty-indicator" data-workflow-dirty-indicator>All changes are saved locally.</p>` : ""}
     ${fields.map((field) => `
       <label>
         ${field.label}
@@ -130,6 +155,34 @@ export function renderEditFormView({
       <button type="button" id="cancel-form" class="secondary">Cancel</button>
     </div>
   `;
+
+  function buildCurrentSnapshot() {
+    const formData = Object.fromEntries(new FormData(form).entries());
+    if (state.activeModel === "workflows" && typeof formData.wf_data === "string") {
+      formData.wf_data = formData.wf_data.trim();
+    }
+    return JSON.stringify(formData);
+  }
+
+  const initialSnapshot = buildCurrentSnapshot();
+  const dirtyIndicator = form.querySelector("[data-workflow-dirty-indicator]");
+
+  function updateDirtyState() {
+    const dirty = buildCurrentSnapshot() !== initialSnapshot;
+    if (dirtyIndicator) {
+      dirtyIndicator.textContent = dirty ? "Unsaved workflow changes." : "All changes are saved locally.";
+      dirtyIndicator.classList.toggle("is-dirty", dirty);
+    }
+    if (state.activeModel === "workflows") {
+      const workflowDataInput = form.querySelector('textarea[name="wf_data"]');
+      if (workflowDataInput) {
+        workflowDataInput.classList.toggle("workflow-json-unsaved", dirty);
+      }
+    }
+    if (typeof onDirtyChange === "function") {
+      onDirtyChange(dirty);
+    }
+  }
 
   if (state.activeModel === "cases") {
     const workflowSelect = form.querySelector('select[name="workflow_id"]');
@@ -158,6 +211,57 @@ export function renderEditFormView({
     });
   }
 
+  if (state.activeModel === "workflows") {
+    initWorkflowAiChat(form, {
+      aiEnabled,
+      escapeHtml,
+      setStatus,
+      getPromptText: () => String(form.querySelector("[data-workflow-ai-input]")?.value || ""),
+      getDraft: () => {
+        const wfDataInput = form.querySelector('textarea[name="wf_data"]');
+        let wfData = null;
+        if (wfDataInput && wfDataInput.value.trim()) {
+          try {
+            wfData = parseJsonInput(wfDataInput.value, "Workflow Data");
+          } catch (_error) {
+            wfData = null;
+          }
+        }
+
+        return {
+          wf_name: String(form.querySelector('input[name="wf_name"]')?.value || "").trim(),
+          status_code: String(form.querySelector('select[name="status_code"]')?.value || "").trim().toUpperCase(),
+          wf_data: wfData
+        };
+      },
+      onApplyWorkflow: (workflowPayload) => {
+        const wfNameInput = form.querySelector('input[name="wf_name"]');
+        const statusSelect = form.querySelector('select[name="status_code"]');
+        const wfDataInput = form.querySelector('textarea[name="wf_data"]');
+
+        if (wfNameInput) {
+          wfNameInput.value = workflowPayload.wf_name || "";
+          wfNameInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+        if (statusSelect) {
+          statusSelect.value = workflowPayload.status_code || "ACT";
+          statusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
+        if (wfDataInput) {
+          wfDataInput.value = JSON.stringify(workflowPayload.wf_data || {}, null, 2);
+          wfDataInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+        updateDirtyState();
+      }
+    });
+  }
+
+  form.addEventListener("input", updateDirtyState);
+  form.addEventListener("change", updateDirtyState);
+  updateDirtyState();
+
   document.getElementById("cancel-form").addEventListener("click", onCancel);
 }
-

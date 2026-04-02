@@ -88,6 +88,35 @@ Output JSON shape:
 }
 `;
 
+const WORKFLOW_DESIGN_GUIDE = `
+You are an assistant for GenCase workflow design.
+
+Rules:
+- Output must be strict JSON only (no markdown).
+- Return both:
+  1) "assistant_message": short natural-language response for the chat UI.
+  2) "workflow": one complete workflow payload object.
+- Workflow payload must follow this shape exactly:
+{
+  "wf_name": "string",
+  "status_code": "ACT|INACT|DEL|PEND",
+  "wf_data": {
+    "name": "string",
+    "description": "string",
+    "stages": ["stage_one", "stage_two"],
+    "access": {
+      "stage_one": ["group_a"],
+      "stage_two": ["group_b"]
+    }
+  }
+}
+- wf_data.stages must be non-empty unique strings.
+- wf_data.access must include exactly all stage keys.
+- each access[stage] must be a non-empty string array.
+- Use only provided group names unless the user explicitly requests otherwise.
+- Never return partial workflow fields.
+`;
+
 function buildContextBlock(context = {}) {
   const lines = [];
 
@@ -243,6 +272,29 @@ function parseSemanticIntentResponseBody(body) {
     signals: Array.isArray(parsed.signals)
       ? parsed.signals.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 12)
       : []
+  };
+}
+
+function parseWorkflowDesignResponseBody(body) {
+  const content = body?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("AI provider returned an empty response.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (_error) {
+    throw new Error("AI provider returned invalid JSON content.");
+  }
+
+  if (!parsed.workflow || typeof parsed.workflow !== "object" || Array.isArray(parsed.workflow)) {
+    throw new Error("AI provider must return a workflow object.");
+  }
+
+  return {
+    assistantMessage: String(parsed.assistant_message || "").trim(),
+    workflow: parsed.workflow
   };
 }
 
@@ -434,9 +486,82 @@ async function interpretSemanticIntentPrompt(prompt) {
   }
 }
 
+async function designWorkflowFromConversation(payload = {}) {
+  const config = getAiConfig();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  const prompt = String(payload.prompt || "").trim();
+  const conversation = Array.isArray(payload.conversation) ? payload.conversation : [];
+  const draft = payload.draft && typeof payload.draft === "object" ? payload.draft : null;
+  const workflowGuide = String(payload.workflowGuide || "").trim();
+  const groupNames = Array.isArray(payload.groupNames) ? payload.groupNames.map((item) => String(item || "").trim()).filter(Boolean) : [];
+
+  try {
+    const response = await fetch(config.apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: config.model,
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${WORKFLOW_DESIGN_GUIDE.trim()}
+
+Valid group names in current system:
+${groupNames.length > 0 ? groupNames.join(", ") : "(none provided)"}
+
+Workflow spec document:
+${workflowGuide}`
+          },
+          ...conversation,
+          {
+            role: "user",
+            content: `User request:
+${prompt}
+
+Current workflow draft JSON:
+${draft ? JSON.stringify(draft) : "null"}`
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      const error = new Error(`AI provider request failed with status ${response.status}.`);
+      error.statusCode = 502;
+      error.details = details;
+      throw error;
+    }
+
+    const body = await response.json();
+    return parseWorkflowDesignResponseBody(body);
+  } catch (error) {
+    if (error.name === "AbortError") {
+      error.statusCode = 504;
+      error.message = "AI provider request timed out.";
+    }
+
+    if (!error.statusCode) {
+      error.statusCode = 502;
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 module.exports = {
   interpretCaseSearchPrompt,
   interpretSemanticIntentPrompt,
   interpretSemanticCaseSearchPrompt,
-  validatePlan
+  validatePlan,
+  designWorkflowFromConversation
 };

@@ -41,7 +41,7 @@ export function renderDetail({
   const target = document.getElementById("detail-content");
   document.getElementById("detail-title").textContent = `${config.label} Detail`;
 
-  target.innerHTML = config.detailFields.map((field) => {
+  const detailHtml = config.detailFields.map((field) => {
     const rawValue = state.selectedRecord?.[field.key];
     const formattedValue = field.key.endsWith("_at") || field.key === "timestamp"
       ? formatDateTime(rawValue)
@@ -60,5 +60,17 @@ export function renderDetail({
       </div>
     `;
   }).join("");
-}
 
+  const workflowGuideLink = state.activeModel === "workflows"
+    ? `
+      <div class="detail-item detail-item--full detail-item--meta">
+        <p>Workflow JSON Guide</p>
+        <div class="detail-value">
+          <a href="/WORKFLOW.md" target="_blank" rel="noopener noreferrer">Open WORKFLOW.md</a>
+        </div>
+      </div>
+    `
+    : "";
+
+  target.innerHTML = `${detailHtml}${workflowGuideLink}`;
+}

@@ -51,6 +51,8 @@ Case visibility rules:
 - Case list shows staged busy indicators while AI search or record loading is in progress.
 - Case detail view supports one-click export to `.json` or `.md`, including case fields, `case_data`, and all visible comments with author, timestamp, and content.
 - Case detail also supports direct logged-in access by URL at `/cases/<id>`.
+- Workflow create/edit now includes an optional AI chat assistant that can draft valid workflow payload JSON based on natural-language requirements.
+- Workflow detail view includes a direct link to `WORKFLOW.md` for JSON format reference.
 
 Detailed case permission logic:
 
@@ -89,6 +91,7 @@ Status code values:
 
 1. Fill in [`.env`](./.env)
    - If you want AI-assisted case search, also set `AI_API_URL`, `AI_API_KEY`, `AI_MODEL`, and optionally `AI_TIMEOUT_MS`
+   - The same AI configuration is also used by the workflow AI assistant in workflow create/edit view
    - Set `AI_SEMANTIC_FILTER_ENABLED=true` to enable the new hybrid semantic filter, or `false` to keep plan-based AI search only
 2. Fill in `api_keys.env`
 3. Rebuild the database:
@@ -161,6 +164,8 @@ Cross-platform script rules:
 
 - JSON input fields such as workflow data and case data are validated in the browser before submission.
 - If JSON format is invalid, the UI shows an explicit error message instead of failing silently.
+- Workflow create/edit keeps manual JSON editing fully available even when AI is disabled or unreachable.
+- Workflow create/edit highlights unsaved changes and warns before leaving with unsaved edits.
 - Case `case_data` editor now supports two synchronized modes:
   - a friendly nested input mode (default)
   - a raw JSON editor mode
@@ -208,4 +213,5 @@ Cross-platform script rules:
 - [public/core](./public/core): shared frontend constants, state, utility functions, API and workflow helpers
 - [public/models](./public/models): per-model frontend config modules (users, groups, user-groups, workflows, cases)
 - [public/components](./public/components): reusable frontend render/edit components (list/detail/comments/audit/case_data editor)
+- [WORKFLOW.md](./WORKFLOW.md): canonical workflow JSON format and prompt template for AI workflow generation
 - [tests/run-tests.js](./tests/run-tests.js): integration smoke tests

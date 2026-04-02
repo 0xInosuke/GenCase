@@ -54,6 +54,10 @@ app.get("/cases/:id", requirePageAuth, (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
+app.get("/WORKFLOW.md", requirePageAuth, (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "WORKFLOW.md"));
+});
+
 app.use((err, req, res, _next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || "Unexpected server error.";

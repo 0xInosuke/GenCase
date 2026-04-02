@@ -1,12 +1,23 @@
+const fs = require("fs");
+const path = require("path");
 const { getAiConfig } = require("../config/env");
 const caseModel = require("../models/caseModel");
+const groupModel = require("../models/groupModel");
 const { clampPageSize, normalizeSort, parsePositiveInteger } = require("../utils/listQuery");
-const { interpretCaseSearchPrompt, interpretSemanticIntentPrompt, interpretSemanticCaseSearchPrompt, validatePlan } = require("../services/aiProviderService");
+const {
+  interpretCaseSearchPrompt,
+  interpretSemanticIntentPrompt,
+  interpretSemanticCaseSearchPrompt,
+  validatePlan,
+  designWorkflowFromConversation
+} = require("../services/aiProviderService");
 const { runCaseSearchForUser, runCaseSearchOnCases, buildSearchContextFromCases } = require("../services/aiCaseSearchService");
 const { buildSemanticSearchContextFromCases } = require("../services/aiSemanticCaseSearchService");
+const { parseWorkflowPayload } = require("../services/workflowValidationService");
 const { logAiEvent } = require("../utils/logger");
 
 const aiRequestBuckets = new Map();
+let workflowGuideCache = null;
 
 function fail(message, statusCode = 400) {
   const error = new Error(message);
@@ -44,6 +55,66 @@ function parseListOptions(body) {
     sortBy: sort.sortBy,
     sortDir: sort.sortDir
   };
+}
+
+function readWorkflowGuide() {
+  if (workflowGuideCache) {
+    return workflowGuideCache;
+  }
+
+  const guidePath = path.join(process.cwd(), "WORKFLOW.md");
+  workflowGuideCache = fs.readFileSync(guidePath, "utf8");
+  return workflowGuideCache;
+}
+
+function parseWorkflowConversation(body) {
+  const rawConversation = Array.isArray(body?.conversation) ? body.conversation : [];
+  const normalized = [];
+
+  for (const item of rawConversation) {
+    const role = String(item?.role || "").trim().toLowerCase();
+    const content = String(item?.content || "").trim();
+
+    if (!["user", "assistant"].includes(role) || !content) {
+      continue;
+    }
+
+    normalized.push({
+      role,
+      content: content.slice(0, 2000)
+    });
+  }
+
+  return normalized.slice(-12);
+}
+
+function parseWorkflowDraft(body) {
+  const draft = body?.draft;
+  if (!draft || typeof draft !== "object" || Array.isArray(draft)) {
+    return null;
+  }
+
+  const normalized = {};
+
+  if (typeof draft.wf_name === "string") {
+    normalized.wf_name = draft.wf_name.trim();
+  }
+
+  if (typeof draft.status_code === "string") {
+    normalized.status_code = draft.status_code.trim().toUpperCase();
+  }
+
+  if (typeof draft.wf_data === "string") {
+    try {
+      normalized.wf_data = JSON.parse(draft.wf_data);
+    } catch (_error) {
+      normalized.wf_data = null;
+    }
+  } else if (draft.wf_data && typeof draft.wf_data === "object" && !Array.isArray(draft.wf_data)) {
+    normalized.wf_data = draft.wf_data;
+  }
+
+  return normalized;
 }
 
 module.exports = {
@@ -199,6 +270,55 @@ module.exports = {
           plan,
           semantic
         }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async runWorkflowDesign(req, res, next) {
+    try {
+      const prompt = String(req.body?.prompt || "").trim();
+      if (!prompt) {
+        fail("prompt is required.");
+      }
+      if (prompt.length > 2000) {
+        fail("Workflow prompt is too long. Keep it under 2000 characters.");
+      }
+
+      enforceAiRateLimit(req.sessionUser.user_id);
+      const groupsResult = await groupModel.listGroups({
+        search: null,
+        page: 1,
+        pageSize: 200,
+        sortBy: "group_name",
+        sortDir: "asc"
+      });
+      const groupNames = groupsResult.items.map((item) => item.group_name);
+      const workflowGuide = readWorkflowGuide();
+      const conversation = parseWorkflowConversation(req.body);
+      const draft = parseWorkflowDraft(req.body);
+
+      logAiEvent(
+        req,
+        `workflow_prompt_received groups=${groupNames.length} conversation_turns=${conversation.length}`,
+        prompt
+      );
+
+      const aiResult = await designWorkflowFromConversation({
+        prompt,
+        conversation,
+        draft,
+        workflowGuide,
+        groupNames
+      });
+      const workflow = parseWorkflowPayload(aiResult.workflow);
+
+      logAiEvent(req, `workflow_prompt_result wf_name=${workflow.wf_name} stages=${workflow.wf_data.stages.length}`);
+
+      res.json({
+        assistant_message: aiResult.assistantMessage || "I generated a workflow draft that matches the required format.",
+        workflow
       });
     } catch (error) {
       next(error);

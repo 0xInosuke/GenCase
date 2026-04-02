@@ -19,6 +19,7 @@ import { renderEditFormView } from "./components/editFormView.js";
 const modelConfigs = createModelConfigs(parseJsonInput);
 const state = createInitialState();
 let consoleCollapsed = true;
+let workflowEditDirty = false;
 
 function setBusy(isBusy, message = "Loading...") {
   state.busy = isBusy;
@@ -84,6 +85,21 @@ function updateBrowserLocation() {
 
 function getConfig(model = state.activeModel) {
   return modelConfigs[model];
+}
+
+function hasUnsavedWorkflowEdit() {
+  return state.view === "edit" && state.activeModel === "workflows" && workflowEditDirty;
+}
+
+function setWorkflowEditDirty(isDirty) {
+  workflowEditDirty = Boolean(isDirty);
+}
+
+function confirmDiscardWorkflowEdit() {
+  if (!hasUnsavedWorkflowEdit()) {
+    return true;
+  }
+  return window.confirm("Workflow has unsaved changes. Leave this page without saving?");
 }
 
 function toggleView(view) {
@@ -346,13 +362,18 @@ function renderAuditRecords() {
 
 function renderEditForm(mode) {
   const config = getConfig();
+  setWorkflowEditDirty(false);
   renderEditFormView({
     state,
     config,
     mode,
     escapeHtml,
     parseJsonInput,
+    aiEnabled: state.aiStatus.enabled,
     setStatus,
+    onDirtyChange: (isDirty) => {
+      setWorkflowEditDirty(isDirty);
+    },
     onSubmit: async ({ isCreate, formData }) => {
       try {
         const payload = isCreate
@@ -366,6 +387,7 @@ function renderEditForm(mode) {
           body: JSON.stringify(payload)
         });
 
+        setWorkflowEditDirty(false);
         state.selectedRecord = saved;
         await refreshCurrentModel();
         if (isCreate) {
@@ -396,6 +418,10 @@ function renderEditForm(mode) {
       }
     },
     onCancel: () => {
+      if (!confirmDiscardWorkflowEdit()) {
+        return;
+      }
+      setWorkflowEditDirty(false);
       if (mode === "create") {
         toggleView("list");
       } else {
@@ -447,6 +473,10 @@ function resetCaseSearchState(clearInput = false) {
 }
 
 async function switchModel(model) {
+  if (!confirmDiscardWorkflowEdit()) {
+    return;
+  }
+  setWorkflowEditDirty(false);
   const isSameModel = state.activeModel === model;
   state.activeModel = model;
   state.selectedRecord = null;
@@ -470,6 +500,15 @@ async function switchModel(model) {
 }
 
 function registerEvents() {
+  window.addEventListener("beforeunload", (event) => {
+    if (!hasUnsavedWorkflowEdit()) {
+      return;
+    }
+
+    event.preventDefault();
+    event.returnValue = "";
+  });
+
   document.querySelectorAll("#model-nav button").forEach((button) => {
     button.addEventListener("click", async () => {
       await switchModel(button.dataset.model);
@@ -541,6 +580,10 @@ function registerEvents() {
   });
 
   document.getElementById("back-to-list").addEventListener("click", async () => {
+    if (!confirmDiscardWorkflowEdit()) {
+      return;
+    }
+    setWorkflowEditDirty(false);
     clearStatus();
     toggleView("list");
     updateHeader();
@@ -552,6 +595,10 @@ function registerEvents() {
   });
 
   document.getElementById("create-button").addEventListener("click", async () => {
+    if (!confirmDiscardWorkflowEdit()) {
+      return;
+    }
+    setWorkflowEditDirty(false);
     if (state.activeModel === "user-groups" || state.activeModel === "cases") {
       await loadReferences();
     }
@@ -561,6 +608,10 @@ function registerEvents() {
   });
 
   document.getElementById("edit-button").addEventListener("click", async () => {
+    if (!confirmDiscardWorkflowEdit()) {
+      return;
+    }
+    setWorkflowEditDirty(false);
     if (state.activeModel === "user-groups" || state.activeModel === "cases") {
       await loadReferences();
     }
@@ -570,6 +621,10 @@ function registerEvents() {
   });
 
   document.getElementById("cancel-edit").addEventListener("click", () => {
+    if (!confirmDiscardWorkflowEdit()) {
+      return;
+    }
+    setWorkflowEditDirty(false);
     clearStatus();
     toggleView(state.selectedRecord ? "detail" : "list");
     updateHeader();

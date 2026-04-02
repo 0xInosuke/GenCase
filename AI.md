@@ -1,8 +1,15 @@
 # AI Search Module
 
-This project includes an independent AI-assisted case search module for the case list page.
+This project includes:
 
-The module does not change the existing database schema or the normal CRUD/search behavior. It extends the unified case-list search field so a user can type natural language and GenCase converts that request into either a structured plan or a multi-step semantic case-ID selection flow.
+- an independent AI-assisted case search module for the case list page
+- an independent AI-assisted workflow design chat module for workflow create/edit pages
+
+The AI modules do not change the existing database schema or normal CRUD behavior.
+
+Case AI extends the unified case-list search field so a user can type natural language and GenCase converts that request into either a structured plan or a multi-step semantic case-ID selection flow.
+
+Workflow AI adds a chat box in workflow create/edit. Users can describe workflow requirements in natural language, and GenCase requests a standards-compliant workflow JSON draft from the configured LLM.
 
 ## Configuration
 
@@ -115,6 +122,54 @@ Authenticated session route:
 POST /api/ai/case-search
 ```
 
+Authenticated workflow design route:
+
+```text
+POST /api/ai/workflow-design
+```
+
+Workflow design request body:
+
+```json
+{
+  "prompt": "create a vendor onboarding workflow with draft, compliance review, finance review, approved",
+  "conversation": [
+    { "role": "user", "content": "..." },
+    { "role": "assistant", "content": "..." }
+  ],
+  "draft": {
+    "wf_name": "vendor_onboarding",
+    "status_code": "ACT",
+    "wf_data": {}
+  }
+}
+```
+
+Workflow design response shape:
+
+```json
+{
+  "assistant_message": "short guidance for the user",
+  "workflow": {
+    "wf_name": "vendor_onboarding",
+    "status_code": "ACT",
+    "wf_data": {
+      "name": "Vendor Onboarding",
+      "description": "Review and approve vendor onboarding",
+      "stages": ["draft", "compliance_review", "finance_review", "approved"],
+      "access": {
+        "draft": ["editor", "admin"],
+        "compliance_review": ["admin"],
+        "finance_review": ["admin"],
+        "approved": ["admin", "viewer"]
+      }
+    }
+  }
+}
+```
+
+The backend validates the returned `workflow` payload using the same rules as `/api/workflows` create/update. Invalid AI output is rejected and never written to the database.
+
 Request body supports either:
 
 ```json
@@ -148,12 +203,13 @@ or an already generated structured plan:
 
 - AI search only returns cases already visible to the current logged-in user.
 - The AI route is mounted under `/api`, so requests without a valid session cookie are rejected with `401`.
-- There is no external API-key variant of the AI route. `/external-api/...` does not expose AI search.
+- There is no external API-key variant of the AI routes. `/external-api/...` does not expose AI search or workflow design.
 - The model may suggest filters, but GenCase executes them locally after validation.
 - Unsupported fields and operators are rejected before execution.
+- Workflow AI responses are validated against workflow payload rules (`wf_name`, `status_code`, `wf_data`, stages/access constraints) before returning to frontend.
 - AI prompt length is capped to reduce accidental oversized requests.
 - AI requests are rate-limited per logged-in user to reduce abuse and uncontrolled model spend.
-- Existing `/api/cases` list search remains unchanged.
+- Existing `/api/cases` list search and `/api/workflows` CRUD routes remain unchanged.
 
 ## Abuse Risk Notes
 
